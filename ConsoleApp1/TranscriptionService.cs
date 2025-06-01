@@ -32,6 +32,8 @@ namespace WhisperNetConsoleDemo
         public event Action<string>? DebugMessageGenerated;
         public event Action<bool>? RecordingStateChanged;
         public event Action? SettingsUpdated;
+        public event Action? ProcessingStarted;
+        public event Action? ProcessingFinished;
 
         // --- State Fields ---
         private bool isRecording = false;
@@ -46,6 +48,9 @@ namespace WhisperNetConsoleDemo
         private bool activelyProcessingChunk = false;
         private Task? currentTranscriptionTask = null;
         private List<string> currentSessionTranscribedText = new List<string>();
+        public string LastRawFilteredText { get; private set; } = string.Empty;
+        public string LastLLMProcessedText { get; private set; } = string.Empty;
+        public bool WasLastProcessingWithLLM { get; private set; } = false; // To know if LLM text is valid
 
         // --- LLamaSharp Specific ---
         private LLamaWeights? llmModelWeights = null;
@@ -339,6 +344,7 @@ namespace WhisperNetConsoleDemo
                 }
             if (!activelyProcessingChunk && process)
                 {
+                ProcessingStarted?.Invoke();
                 activelyProcessingChunk = true;
                 OnDebugMessage($"Chunk ready. Dur: {chunkDur.TotalSeconds:F1}s, Silence: {silenceDetectedRecently}, Len: {currentAudioChunkStream.Length}");
                 MemoryStream? streamToSend = null;
@@ -362,6 +368,7 @@ namespace WhisperNetConsoleDemo
                 catch (Exception ex) { OnDebugMessage($"Error prep stream: {ex.Message}"); activelyProcessingChunk = false; streamToSend?.Dispose(); capturedChunkFile?.Dispose(); capturedAudioChunkStream?.Dispose(); return; }
                 finally
                     {
+                    ProcessingFinished?.Invoke();
                     capturedChunkFile?.Dispose(); // This disposes capturedAudioChunkStream
                     }
 
@@ -374,8 +381,15 @@ namespace WhisperNetConsoleDemo
                         {
                         await currentTranscriptionTask;
                         }
-                    catch (Exception ex) { OnDebugMessage($"Err transcription task: {ex.Message}"); }
-                    finally { currentTranscriptionTask = null; activelyProcessingChunk = false; }
+                    catch (Exception ex)
+                        {
+                        OnDebugMessage($"Err transcription task: {ex.Message}");
+                        }
+                    finally
+                        {
+                        currentTranscriptionTask = null;
+                        activelyProcessingChunk = false;
+                        }
                     }
                 else
                     {
@@ -388,6 +402,7 @@ namespace WhisperNetConsoleDemo
         private async void WaveSource_RecordingStopped(object? sender, StoppedEventArgs e)
             {
             OnDebugMessage("WaveSource_RecordingStopped - Event ENTERED.");
+            ProcessingStarted?.Invoke();
             bool wasRec = isRecording;
             isRecording = false;
             OnRecordingStateChanged(false);
@@ -452,7 +467,12 @@ namespace WhisperNetConsoleDemo
                     await finalTranscribeTask;
                     }
                 catch (Exception ex) { OnDebugMessage($"Err FINAL transcription: {ex.Message}"); }
-                finally { if (ReferenceEquals(currentTranscriptionTask, finalTranscribeTask)) currentTranscriptionTask = null; activelyProcessingChunk = false; }
+                finally
+                    {
+                    if (ReferenceEquals(currentTranscriptionTask, finalTranscribeTask))
+                        currentTranscriptionTask = null;
+                    activelyProcessingChunk = false;
+                    }
                 }
             else if (wasRec)
                 {
@@ -470,25 +490,42 @@ namespace WhisperNetConsoleDemo
 
             if (wasRec)
                 {
-                string filteredFullText;
+                string rawFilteredFullText;
                 lock (currentSessionTranscribedText)
                     {
                     var knownPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "[BLANK_AUDIO]", "(silence)", "[ Silence ]", "...", "[INAUDIBLE]", "[MUSIC PLAYING]", "[SOUND]", "[CLICK]" };
                     var segmentsToPrint = currentSessionTranscribedText.Select(segment => segment.Trim()).Where(trimmedSegment => !string.IsNullOrWhiteSpace(trimmedSegment) && !knownPlaceholders.Contains(trimmedSegment) && !(trimmedSegment.StartsWith("[") && trimmedSegment.EndsWith("]") && trimmedSegment.Length <= 25)).ToList();
-                    filteredFullText = string.Join(" ", segmentsToPrint).Trim();
+                    rawFilteredFullText = string.Join(" ", segmentsToPrint).Trim();
                     }
+                LastRawFilteredText = rawFilteredFullText; // Store the raw text
+                WasLastProcessingWithLLM = false; // Reset LLM status for this session
+                LastLLMProcessedText = string.Empty; // Clear previous LLM text
+                string finalTextToDisplay;
+                string headerA = $"--- RAW Transcription ---{Environment.NewLine}";
+                string headerB = $"{Environment.NewLine}--- LLM Refined ---{Environment.NewLine}";
 
-                string finalTextToDisplay = filteredFullText;
-                if (Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(filteredFullText))
+                if (Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(rawFilteredFullText))
                     {
                     OnDebugMessage("Attempting LLM processing for the full text...");
-                    finalTextToDisplay = "\nA: " + filteredFullText + "\n\nB: " + await ProcessTextWithLLMAsync(filteredFullText);
-                    OnDebugMessage("LLM processing complete. Displaying refined text.");
+                    // Display a "processing with LLM" message to the UI if desired (via a different event/mechanism)
+                    // For now, let's assume Form1 just waits for the final combined result.
+                    string refinedText = await ProcessTextWithLLMAsync(rawFilteredFullText);
+                    LastLLMProcessedText = refinedText; // Store LLM text
+                    WasLastProcessingWithLLM = true; // Mark that LLM was used and produced output
+                    OnDebugMessage("LLM processing complete.");
+
+                    finalTextToDisplay = $"{headerA}{rawFilteredFullText}{headerB}{refinedText}";
                     }
-                else if (Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(filteredFullText))
+                else if (Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(rawFilteredFullText))
                     {
-                    OnDebugMessage("Full text is empty after filtering, skipping LLM.");
+                    OnDebugMessage("Full text is empty after filtering, skipping LLM processing.");
+                    finalTextToDisplay = $"{headerA}[No speech detected to refine]";
                     }
+                else // LLM not enabled, just show raw
+                    {
+                    finalTextToDisplay = $"{headerA}{rawFilteredFullText}";
+                    }
+
                 OnFullTranscriptionReady(finalTextToDisplay);
                 }
             if (e.Exception != null)
@@ -496,6 +533,7 @@ namespace WhisperNetConsoleDemo
                 OnDebugMessage($"NAudio stop exception: {e.Exception.Message}");
                 }
             // stopProcessingTcs?.TrySetResult(true); // This should be handled by Form1 if it awaits a TCS
+            ProcessingFinished?.Invoke();
             }
 
         private async Task TranscribeAudioChunkAsync(Stream audioStream)
@@ -566,7 +604,7 @@ namespace WhisperNetConsoleDemo
                     $"<|im_start|>assistant \n";
 
                 var inferenceParams = new InferenceParams()
-                {
+                    {
                     //Temperature = Settings.LLMTemperature,
                     AntiPrompts = new List<string> { "<|im_end|>", "user:", "User:", "<|user|>", System.Environment.NewLine + "<|im_start|>" }, // More robust anti-prompts
                     MaxTokens = Settings.LLMMaxOutputTokens,
@@ -575,14 +613,14 @@ namespace WhisperNetConsoleDemo
                     // Consider adding other parameters like TopK, TopP, MinP, RepeatPenalty from Settings
                     // PenalizeRepeatLastNElements = 64, // Example
                     // PenaltyRepeat = 1.1f,            // Example
-                };
+                    };
                 OnDebugMessage("\nfullPrompt " + fullPrompt);
                 OnDebugMessage("\ninferenceParams" + inferenceParams.ToString());
 
                 await foreach (var textPart in llmExecutor.InferAsync(fullPrompt, inferenceParams))
-                {
+                    {
                     outputBuffer.Append(textPart);
-                }
+                    }
                 OnDebugMessage("LLamaSharp processing successful." + outputBuffer.ToString().Trim());
                 return outputBuffer.ToString().Trim();
                 }
@@ -640,15 +678,20 @@ namespace WhisperNetConsoleDemo
             return true;
             }
 
-        public void StopRecording()
+        public Task StopRecording()
             {
             if (!isRecording || waveSource == null)
                 {
                 OnDebugMessage("Not recording or waveSource is null.");
-                return;
+                return Task.CompletedTask;
                 }
             OnDebugMessage("StopRecording called externally (e.g., from UI).");
+            if (stopProcessingTcs == null || stopProcessingTcs.Task.IsCompleted)
+                {
+                stopProcessingTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
             waveSource.StopRecording();
+            return stopProcessingTcs.Task;
             }
 
         public async Task WaitForCurrentTranscriptionToCompleteAsync()
@@ -926,7 +969,7 @@ namespace WhisperNetConsoleDemo
                 try
                     {
                     // Add a timeout to prevent indefinite hang if something goes wrong in RecordingStopped
-                    var completedTask = await Task.WhenAny(stopProcessingTcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+                    var completedTask = await Task.WhenAny(stopProcessingTcs.Task, Task.Delay(TimeSpan.FromSeconds(1)));
                     if (completedTask == stopProcessingTcs.Task)
                         {
                         OnDebugMessage("DisposeAsyncCore: WaveSource_RecordingStopped signalled completion.");

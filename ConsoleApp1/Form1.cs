@@ -8,8 +8,17 @@ namespace WhisperNetConsoleDemo
     {
     public partial class Form1 : Form
         {
-        private TranscriptionService transcriptionService;
+        public TranscriptionService transcriptionService;
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
+        private enum AppStatus
+            {
+            Idle, Calibrating, Listening, Processing, Error
+            }
+        private Color idleColor = SystemColors.ControlDark; // Or a light gray
+        private Color listeningColor = Color.LightGreen;
+        private Color processingColor = Color.LightSkyBlue;
+        private Color errorColor = Color.LightCoral;
+        private Color calibratingColor = Color.LightYellow;
 
         public Form1()
             {
@@ -22,12 +31,67 @@ namespace WhisperNetConsoleDemo
             transcriptionService.FullTranscriptionReady += OnFullTranscriptionCompleted;
             transcriptionService.RecordingStateChanged += OnServiceRecordingStateChanged;
             transcriptionService.SettingsUpdated += OnServiceSettingsUpdated;
-
+            transcriptionService.ProcessingStarted += OnServiceProcessingStarted; // Subscribe
+            transcriptionService.ProcessingFinished += OnServiceProcessingFinished; // Subscribe
             // Set initial UI state from settings
             textBox2.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
-                                                                                // Consider adding a toggle for debug messages in the UI if desired
+            UpdateStatusIndicator(AppStatus.Idle);
+            btnCopyRawText.Enabled = false;
+            btnCopyLLMText.Enabled = false;// Consider adding a toggle for debug messages in the UI if desired
+            checkBox_debug.Checked = transcriptionService.Settings.ShowDebugMessages;
+            bxLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
+            }
+        private void UpdateStatusIndicator(AppStatus status, string message = "")
+            {
+            if (lblStatusIndicator.InvokeRequired)
+                {
+                lblStatusIndicator.Invoke(() => UpdateStatusIndicator(status, message));
+                return;
+                }
+
+            string displayText = message;
+            Color displayColor = idleColor;
+
+            switch (status)
+                {
+                case AppStatus.Idle:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "Ready" : message;
+                    displayColor = idleColor;
+                    break;
+                case AppStatus.Listening:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "Listening..." : message;
+                    displayColor = listeningColor;
+                    break;
+                case AppStatus.Processing:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "Processing..." : message;
+                    displayColor = processingColor;
+                    break;
+                case AppStatus.Error:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "Error" : message;
+                    displayColor = errorColor;
+                    break;
+                case AppStatus.Calibrating:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "Calibrating..." : message;
+                    displayColor = calibratingColor;
+                    break;
+                }
+            lblStatusIndicator.Text = displayText;
+            lblStatusIndicator.BackColor = displayColor;
+            lblStatusIndicator.ForeColor = displayColor.GetBrightness() < 0.5 ? Color.White : Color.Black; // Contrast for text
+            }
+        private bool activelyProcessingChunkInUI = false;
+        private void OnServiceProcessingStarted()
+            {
+            activelyProcessingChunkInUI = true;
+            UpdateStatusIndicator(AppStatus.Processing);
             }
 
+        private void OnServiceProcessingFinished()
+            {
+            activelyProcessingChunkInUI = false;
+            // If not recording anymore, go to Idle. If still recording, go back to Listening.
+            UpdateStatusIndicator(isFormRecordingState ? AppStatus.Listening : AppStatus.Idle);
+            }
         private void Form1_Load(object sender, EventArgs e)
             {
             // Settings are loaded by TranscriptionService constructor
@@ -37,14 +101,25 @@ namespace WhisperNetConsoleDemo
             UpdateButtonStates();
             }
 
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        private async void Form1_FormClosing(object sender, FormClosingEventArgs e)
             {
-            if (isFormRecordingState) // Use a local isRecording flag if needed, or check service's state
+            if (transcriptionService != null)
+                {
+                AppendToDebugOutput("Form1_FormClosing: Unsubscribing from TranscriptionService events.");
+                transcriptionService.DebugMessageGenerated -= OnDebugMessageReceived;
+                transcriptionService.SegmentTranscribed -= OnSegmentReceived;
+                transcriptionService.FullTranscriptionReady -= OnFullTranscriptionCompleted;
+                transcriptionService.RecordingStateChanged -= OnServiceRecordingStateChanged;
+                transcriptionService.SettingsUpdated -= OnServiceSettingsUpdated;
+                transcriptionService.ProcessingStarted -= OnServiceProcessingStarted;
+                transcriptionService.ProcessingFinished -= OnServiceProcessingFinished;
+                }
+            if (isFormRecordingState && transcriptionService != null)
                 {
                 // Decide if you want to prevent closing or auto-stop
                 // For now, let's auto-stop. The service's Dispose should handle it.
                 AppendToDebugOutput("Form closing during recording, stopping service.");
-                transcriptionService.StopRecording(); // This is synchronous but triggers async events
+                await transcriptionService.StopRecording();
                 }
             // Await any final processing if transcriptionService.StopRecording initiated it.
             // This requires more complex async coordination in FormClosing.
@@ -54,6 +129,7 @@ namespace WhisperNetConsoleDemo
 
             // transcriptionService.SaveAppSettings(); // Service should save on its own when settings change
             transcriptionService.Dispose(); // Or await transcriptionService.DisposeAsync(); if FormClosing can be async
+            Thread.Sleep(3000); // Give time for any final debug messages to flush
             }
 
         // --- Event Handlers from TranscriptionService ---
@@ -82,12 +158,26 @@ namespace WhisperNetConsoleDemo
                 AppendToTranscriptionOutput("[No speech detected in this session after filtering.]", true);
                 }
             AppendToTranscriptionOutput("----------------------------------------", true);
+            UpdateButtonStates();
             }
 
         private bool isFormRecordingState = false; // Separate UI recording state
         private void OnServiceRecordingStateChanged(bool nowRecording)
             {
             isFormRecordingState = nowRecording; // Update UI state
+            if (nowRecording)
+                {
+                UpdateStatusIndicator(AppStatus.Listening);
+                btnCopyRawText.Enabled = false; // Disable during recording
+                btnCopyLLMText.Enabled = false; // Disable during recording
+                }
+            else
+                {
+                if (!activelyProcessingChunkInUI)
+                    {
+                    UpdateStatusIndicator(AppStatus.Idle);
+                    }
+                }
             UpdateButtonStates();
             }
         private void OnServiceSettingsUpdated()
@@ -139,10 +229,24 @@ namespace WhisperNetConsoleDemo
                 this.Invoke(new Action(UpdateButtonStates));
                 return;
                 }
-            button1.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
+            btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
             button2.Enabled = !isFormRecordingState; // Calibrate
             button3.Enabled = !isFormRecordingState; // Model
             button4.Enabled = !isFormRecordingState; // Mic
+
+            // Copy button states
+            if (!isFormRecordingState) // Only enable copy buttons when not recording
+                {
+                btnCopyRawText.Enabled = !string.IsNullOrEmpty(transcriptionService.LastRawFilteredText);
+                btnCopyLLMText.Enabled = transcriptionService.WasLastProcessingWithLLM &&
+                                         !string.IsNullOrEmpty(transcriptionService.LastLLMProcessedText);
+                }
+            else
+                {
+                btnCopyRawText.Enabled = false;
+                btnCopyLLMText.Enabled = false;
+                }
+
             }
 
         private void UpdateUIFromServiceSettings()
@@ -156,6 +260,10 @@ namespace WhisperNetConsoleDemo
             // Example: lblModelName.Text = Path.GetFileName(transcriptionService.Settings.ModelFilePath);
             // lblThreshold.Text = $"{transcriptionService.Settings.CalibratedEnergySilenceThreshold:F4}";
             textBox2.Visible = transcriptionService.Settings.ShowDebugMessages;
+            if (transcriptionService.Settings.ShowDebugMessages)
+                textBox1.Size = new Size(621, 408);
+            else
+                textBox1.Size = new Size(1252, 408);
             }
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
@@ -164,13 +272,13 @@ namespace WhisperNetConsoleDemo
             if (availableMicrophones.Count == 0)
                 {
                 MessageBox.Show("No microphones found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                button1.Enabled = false; // Disable record button
+                btnStartStop.Enabled = false; // Disable record button
                 button2.Enabled = false; // Disable calibrate
                 button4.Enabled = false; // Disable mic select
                 }
             else
                 {
-                button1.Enabled = true;
+                btnStartStop.Enabled = true;
                 button2.Enabled = true;
                 button4.Enabled = true;
                 // If you add a ComboBox:
@@ -183,7 +291,7 @@ namespace WhisperNetConsoleDemo
             }
 
         // --- Button Click Handlers ---
-        private async void button1_Click(object sender, EventArgs e) // Record/Stop
+        private async void btnStart_Stop_Click(object sender, EventArgs e) // Record/Stop
             {
             if (!isFormRecordingState)
                 {
@@ -195,9 +303,11 @@ namespace WhisperNetConsoleDemo
 
                 textBox1.Clear(); // Clear previous full transcription
                 AppendToDebugOutput("Start recording button clicked.");
+                UpdateStatusIndicator(AppStatus.Processing, "Starting...");
                 bool success = await transcriptionService.StartRecordingAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
                 if (!success)
                     {
+                    UpdateStatusIndicator(AppStatus.Error, "Failed to start");
                     MessageBox.Show("Failed to start recording. Check debug log.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 // RecordingStateChanged event will update isFormRecordingState and button text
@@ -205,7 +315,10 @@ namespace WhisperNetConsoleDemo
             else
                 {
                 AppendToDebugOutput("Stop recording button clicked.");
-                transcriptionService.StopRecording();
+                UpdateStatusIndicator(AppStatus.Processing, "Stopping..."); // Indicate stopping is a form of processing
+                Task stopTask = transcriptionService.StopRecording();
+                await stopTask;
+                UpdateButtonStates();
                 // RecordingStateChanged event will update isFormRecordingState and button text
                 // Full transcription will be raised by FullTranscriptionReady event
                 }
@@ -228,7 +341,7 @@ namespace WhisperNetConsoleDemo
                 return;
                 }
 
-            button1.Enabled = false; // Disable Record/Stop
+            btnStartStop.Enabled = false; // Disable Record/Stop
             button2.Enabled = false; // Disable Calibrate
             button3.Enabled = false; // Disable Model
             button4.Enabled = false; // Disable Mic
@@ -240,7 +353,8 @@ namespace WhisperNetConsoleDemo
             {
                 if (lblCalibrationStatus.InvokeRequired)
                     {
-                    lblCalibrationStatus.Invoke(() => {
+                    lblCalibrationStatus.Invoke(() =>
+                    {
                         lblCalibrationStatus.Text = message;
                         // Application.DoEvents(); // Use sparingly, can cause issues, but might help UI update during tight loops
                     });
@@ -270,44 +384,62 @@ namespace WhisperNetConsoleDemo
             finally
                 {
                 // lblCalibrationStatus.Visible = false; // Optionally hide after a delay or keep visible
-                button1.Enabled = true; // Re-enable Record/Stop
+                btnStartStop.Enabled = true; // Re-enable Record/Stop
                 button2.Enabled = true; // Re-enable Calibrate
                 button3.Enabled = true; // Re-enable Model
                 button4.Enabled = true; // Re-enable Mic
                 UpdateUIFromServiceSettings(); // Refresh main UI elements with potentially new threshold
                 }
             }
-        private async void button3_Click(object sender, EventArgs e) // Change Model
+        // Form1.cs
+
+        private async void button3_Click(object sender, EventArgs e) // btnChangeModel_Click (now for both)
             {
             if (isFormRecordingState)
                 {
-                MessageBox.Show("Stop recording before changing model.", "Info");
+                MessageBox.Show("Stop recording before changing models.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
                 }
-            using (OpenFileDialog ofd = new OpenFileDialog())
+
+            using (ModelSelectionForm modelForm = new ModelSelectionForm(
+                transcriptionService.Settings.ModelFilePath,
+                transcriptionService.Settings.LocalLLMModelPath))
                 {
-                ofd.Filter = "Whisper Model Files (*.bin)|*.bin|All files (*.*)|*.*";
-                ofd.Title = "Select Whisper Model File";
-                try
+                if (modelForm.ShowDialog(this) == DialogResult.OK)
                     {
-                    ofd.InitialDirectory = !string.IsNullOrWhiteSpace(transcriptionService.Settings.ModelFilePath) && Directory.Exists(Path.GetDirectoryName(transcriptionService.Settings.ModelFilePath)) ?
-                                           Path.GetDirectoryName(transcriptionService.Settings.ModelFilePath) :
-                                           Path.GetDirectoryName(Application.ExecutablePath);
-                    if (!string.IsNullOrWhiteSpace(transcriptionService.Settings.ModelFilePath))
-                        ofd.FileName = Path.GetFileName(transcriptionService.Settings.ModelFilePath);
+                    bool whisperChanged = transcriptionService.Settings.ModelFilePath != modelForm.SelectedWhisperModelPath;
+                    bool llmChanged = transcriptionService.Settings.LocalLLMModelPath != modelForm.SelectedLLMModelPath;
+
+                    if (whisperChanged)
+                        {
+                        AppendToDebugOutput($"New Whisper model selected: {modelForm.SelectedWhisperModelPath}");
+                        await transcriptionService.ChangeModelPathAsync(modelForm.SelectedWhisperModelPath);
+                        // ChangeModelPathAsync in service should update Settings and save
+                        }
+
+                    if (llmChanged)
+                        {
+                        AppendToDebugOutput($"New LLM model selected: {modelForm.SelectedLLMModelPath}");
+                        await transcriptionService.ChangeLLMModelPathAsync(modelForm.SelectedLLMModelPath);
+                        // ChangeLLMModelPathAsync in service should update Settings and save
+                        }
+
+                    if (whisperChanged || llmChanged)
+                        {
+                        AppendToDebugOutput("Model selections updated.");
+                        // SettingsUpdated event from transcriptionService should refresh UI via OnServiceSettingsUpdated
+                        }
+                    else
+                        {
+                        AppendToDebugOutput("Model selections unchanged.");
+                        }
                     }
-                catch { ofd.InitialDirectory = Path.GetDirectoryName(Application.ExecutablePath); }
-
-
-                if (ofd.ShowDialog(this) == DialogResult.OK)
+                else
                     {
-                    await transcriptionService.ChangeModelPathAsync(ofd.FileName);
-                    // SettingsUpdated event will trigger UpdateUIFromServiceSettings
+                    AppendToDebugOutput("Model selection cancelled.");
                     }
                 }
             }
-
-        // Form1.cs
 
         private void button4_Click(object sender, EventArgs e) // btnSelectMic_Click
             {
@@ -400,6 +532,65 @@ namespace WhisperNetConsoleDemo
                     // SettingsUpdated event from transcriptionService should trigger UI refresh.
                     }
                 }
+            }
+
+        // Event handler for btnCopyRawText
+        private void btnCopyRawText_Click(object sender, EventArgs e)
+            {
+            if (!string.IsNullOrEmpty(transcriptionService.LastRawFilteredText))
+                {
+                try
+                    {
+                    Clipboard.SetText(transcriptionService.LastRawFilteredText);
+                    AppendToDebugOutput("Raw text copied to clipboard.");
+                    //MessageBox.Show("Raw transcription copied to clipboard!", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                catch (Exception ex)
+                    {
+                    AppendToDebugOutput($"Error copying raw text: {ex.Message}");
+                    //MessageBox.Show($"Error copying raw text to clipboard: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            else
+                {
+                AppendToDebugOutput("No raw text available to copy.");
+                }
+            }
+
+        // Event handler for btnCopyLLMText
+        private void btnCopyLLMText_Click(object sender, EventArgs e)
+            {
+            if (transcriptionService.WasLastProcessingWithLLM && !string.IsNullOrEmpty(transcriptionService.LastLLMProcessedText))
+                {
+                try
+                    {
+                    Clipboard.SetText(transcriptionService.LastLLMProcessedText);
+                    AppendToDebugOutput("LLM refined text copied to clipboard.");
+                    //MessageBox.Show("LLM refined transcription copied to clipboard!", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                catch (Exception ex)
+                    {
+                    AppendToDebugOutput($"Error copying LLM text: {ex.Message}");
+                    //MessageBox.Show($"Error copying LLM refined text to clipboard: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            else
+                {
+                AppendToDebugOutput("No LLM refined text available to copy (LLM might be off or produced no output).");
+                //MessageBox.Show("No LLM refined text available to copy.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+
+        private void debug_checkBox1_CheckedChanged(object sender, EventArgs e)
+            {
+            transcriptionService.Settings.ShowDebugMessages = checkBox_debug.Checked;
+            transcriptionService.SaveAppSettings(); 
+            }
+
+        private void bxLLM_CheckedChanged(object sender, EventArgs e)
+            {
+            transcriptionService.Settings.ProcessWithLLM = bxLLM.Checked;
+            transcriptionService.SaveAppSettings();
             }
         }
     }
