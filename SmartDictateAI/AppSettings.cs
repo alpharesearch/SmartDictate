@@ -1,4 +1,8 @@
 // AppSettings.cs
+/// <summary>
+/// Represents the application settings for the WhisperNetConsoleDemo,
+/// including audio input, model configuration, and language model processing options.
+/// </summary>
 namespace WhisperNetConsoleDemo
     {
     public class AppSettings
@@ -17,7 +21,7 @@ namespace WhisperNetConsoleDemo
         public int LLMContextSize { get; set; } = 4096; // Or a sensible default for 0.5B model like 2048
         public int LLMSeed { get; set; } = 0; // 0 for random, any other int for fixed seed
         public float LLMTemperature { get; set; } = 0.6f;
-        public int LLMMaxOutputTokens { get; set; } = 1024; // Max tokens LLM should generate
+        public int LLMMaxOutputTokens { get; set; } = -1; // Max tokens LLM should generate
         public string LLMSystemPrompt { get; set; } = "You are an expert copy editor. Your task is to take the provided transcribed text and refine it into clear, grammatically correct, and professional-sounding prose. Correct any dictation errors, fix punctuation, and improve sentence structure where necessary. Output only the refined text.";
         public bool UseGpu { get; set; } = true; // Default to trying GPU. llama.cpp usually falls back to CPU if GPU init fails.
         }
