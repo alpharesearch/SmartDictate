@@ -1,14 +1,17 @@
-﻿
-2. **Open in Visual Studio 2022:**
-- Open the `ConsoleApp1.sln` solution file.
+﻿# SmartDictate
 
-3. **Restore NuGet packages:**
-- Visual Studio will prompt you to restore packages on first open.
+## Getting Started
 
-4. **Build and run:**
-- Press `F5` or click __Start__ to build and launch the application.
+1. **Open in Visual Studio 2022:**  
+   Open the `ConsoleApp1.sln` solution file.
 
-### Usage
+2. **Restore NuGet packages:**  
+   Visual Studio will prompt you to restore packages on first open.
+
+3. **Build and run:**  
+   Press `F5` or click **Start** to build and launch the application.
+
+## Usage
 
 1. **Select your microphone** using the "Mic input" button.
 2. **(Optional) Calibrate** using the "Calibration" button for best results.
@@ -26,8 +29,8 @@
 
 ## Notes
 
-- Model files are not included. You must provide your own Whisper and LLM models. 
-  I used ggml-base.bin and qwen2-0_5b-instruct-q8_0.gguf for testing.
+- Model files are not included. You must provide your own Whisper and LLM models.  
+  Example models: `ggml-base.bin` and `qwen2-0_5b-instruct-q8_0.gguf`.
 - Debug output can be enabled for troubleshooting.
 - All processing is done locally; no audio is sent to external servers.
 
