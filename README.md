@@ -57,6 +57,10 @@ Configure your model paths in `appsettings.json`:
 - Debug output can be enabled for troubleshooting.
 - All processing is done locally; no audio is sent to external servers.
 
+## Screenshot
+
+<img width="640" alt="image" src="https://github.com/user-attachments/assets/79e38214-8940-4801-8090-8ff878fa11ca" />
+
 ## License
 
 [MIT](LICENSE)
