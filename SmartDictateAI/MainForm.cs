@@ -8,7 +8,11 @@ namespace WhisperNetConsoleDemo
     {
     public partial class MainForm : Form
         {
-        public TranscriptionService transcriptionService;
+        private TranscriptionService transcriptionService;
+        public TranscriptionService TranscriptionService
+        {
+            get { return transcriptionService; }
+        }
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
         private enum AppStatus
             {
@@ -128,7 +132,7 @@ namespace WhisperNetConsoleDemo
             // A more robust shutdown might involve a dedicated async method in TranscriptionService.
 
             // transcriptionService.SaveAppSettings(); // Service should save on its own when settings change
-            transcriptionService.Dispose(); // Or await transcriptionService.DisposeAsync(); if FormClosing can be async
+            transcriptionService?.Dispose(); // Or await transcriptionService.DisposeAsync(); if FormClosing can be async
             Thread.Sleep(3000); // Give time for any final debug messages to flush
             }
 
@@ -256,9 +260,6 @@ namespace WhisperNetConsoleDemo
                 this.Invoke(new Action(UpdateUIFromServiceSettings));
                 return;
                 }
-            // Update labels or status strips if you have them
-            // Example: lblModelName.Text = Path.GetFileName(transcriptionService.Settings.ModelFilePath);
-            // lblThreshold.Text = $"{transcriptionService.Settings.CalibratedEnergySilenceThreshold:F4}";
             textBox2.Visible = transcriptionService.Settings.ShowDebugMessages;
             if (transcriptionService.Settings.ShowDebugMessages)
                 textBox1.Size = new Size(621, 408);
@@ -268,7 +269,7 @@ namespace WhisperNetConsoleDemo
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
             {
-            availableMicrophones = transcriptionService.GetAvailableMicrophones();
+            availableMicrophones = TranscriptionService.GetAvailableMicrophones();
             if (availableMicrophones.Count == 0)
                 {
                 MessageBox.Show("No microphones found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -281,11 +282,6 @@ namespace WhisperNetConsoleDemo
                 btnStartStop.Enabled = true;
                 button2.Enabled = true;
                 button4.Enabled = true;
-                // If you add a ComboBox:
-                // comboBoxMicrophones.DataSource = availableMicrophones;
-                // comboBoxMicrophones.DisplayMember = "Name";
-                // comboBoxMicrophones.ValueMember = "Index";
-                // comboBoxMicrophones.SelectedValue = transcriptionService.Settings.SelectedMicrophoneDevice;
                 AppendToDebugOutput($"Populated mics. Current in settings: {transcriptionService.Settings.SelectedMicrophoneDevice}");
                 }
             }
@@ -356,13 +352,11 @@ namespace WhisperNetConsoleDemo
                     lblCalibrationStatus.Invoke(() =>
                     {
                         lblCalibrationStatus.Text = message;
-                        // Application.DoEvents(); // Use sparingly, can cause issues, but might help UI update during tight loops
                     });
                     }
                 else
                     {
                     lblCalibrationStatus.Text = message;
-                    // Application.DoEvents(); 
                     }
                 AppendToDebugOutput($"CALIBRATION_UI: {message}"); // Also send to debug log
             };
@@ -543,12 +537,10 @@ namespace WhisperNetConsoleDemo
                     {
                     Clipboard.SetText(transcriptionService.LastRawFilteredText);
                     AppendToDebugOutput("Raw text copied to clipboard.");
-                    //MessageBox.Show("Raw transcription copied to clipboard!", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 catch (Exception ex)
                     {
                     AppendToDebugOutput($"Error copying raw text: {ex.Message}");
-                    //MessageBox.Show($"Error copying raw text to clipboard: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             else
@@ -566,25 +558,22 @@ namespace WhisperNetConsoleDemo
                     {
                     Clipboard.SetText(transcriptionService.LastLLMProcessedText);
                     AppendToDebugOutput("LLM refined text copied to clipboard.");
-                    //MessageBox.Show("LLM refined transcription copied to clipboard!", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 catch (Exception ex)
                     {
                     AppendToDebugOutput($"Error copying LLM text: {ex.Message}");
-                    //MessageBox.Show($"Error copying LLM refined text to clipboard: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             else
                 {
                 AppendToDebugOutput("No LLM refined text available to copy (LLM might be off or produced no output).");
-                //MessageBox.Show("No LLM refined text available to copy.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
 
         private void debug_checkBox1_CheckedChanged(object sender, EventArgs e)
             {
             transcriptionService.Settings.ShowDebugMessages = checkBox_debug.Checked;
-            transcriptionService.SaveAppSettings(); 
+            transcriptionService.SaveAppSettings();
             }
 
         private void bxLLM_CheckedChanged(object sender, EventArgs e)
