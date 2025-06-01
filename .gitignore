@@ -1,0 +1,71 @@
+# IDE-specific files
+## Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+[Rr]elease/
+[Dd]ebug/
+# For specific project structures, you might use:
+ConsoleApp1/bin/
+ConsoleApp1/obj/
+
+# NuGet packages folder
+# Typically not needed if using modern SDK-style projects, as packages are global.
+# However, if you have a local 'packages' folder for some reason:
+# packages/
+# *.nupkg
+# *.snupkg
+
+# User-specific files
+*.DotSettings.user
+
+# Other common ignores
+*.log
+*.tmp
+*.temp
+local.settings.json
+appsettings.Development.json # Often contains secrets or local overrides
+
+# Large binary files (like your models)
+# It's better to download these separately or use Git LFS if they *must* be in the repo.
+# For now, explicitly ignore them by name or pattern if they are in your source tree
+# but shouldn't be committed.
+ggml-base.bin
+qwen2-0_5b-instruct-q8_0.gguf
+*.gguf
+*.bin # Be careful with generic *.bin if you have legitimate small binaries
+
+# OS generated files
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+## Linux
+*~
+# End of ignores
