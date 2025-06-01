@@ -1,5 +1,5 @@
 // AppSettings.cs
-namespace WhisperNetConsoleDemo // Assuming this is your root namespace
+namespace WhisperNetConsoleDemo
 {
     public class AppSettings
     {

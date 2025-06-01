@@ -10,9 +10,6 @@ public class Program
     // Constants
     private const double MAX_CHUNK_DURATION_SECONDS = 20.0;
     private const double SILENCE_THRESHOLD_SECONDS = 2.0;
-    // These now get their initial values from AppSettings defaults via the appSettings field initializer
-    // public const float DEFAULT_ENERGY_SILENCE_THRESHOLD = AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD;
-    // public const string DEFAULT_MODEL_FILE_PATH = AppSettings.APPSETTINGS_DEFAULT_MODEL_PATH;
     private const int SILENCE_DETECTION_BUFFER_MILLISECONDS = 250;
     private const int CALIBRATION_DURATION_SECONDS = 3;
 
@@ -31,7 +28,7 @@ public class Program
     private static List<string> currentSessionTranscribedText = new List<string>();
 
     // Whisper & App Settings
-    private static string currentModelFilePath; // Initialized by LoadAppSettings
+    private static string? currentModelFilePath; // Initialized by LoadAppSettings
     private static WhisperFactory? whisperFactoryInstance = null;
     private static WhisperProcessor? whisperProcessorInstance = null;
     private static WaveFormat waveFormatForWhisper = new WaveFormat(16000, 16, 1);
@@ -95,7 +92,7 @@ public class Program
         try
         {
             // Ensure appSettings object reflects current runtime values before saving
-            appSettings.ModelFilePath = currentModelFilePath; // Already updated by ChangeModelPath
+            appSettings.ModelFilePath = currentModelFilePath ?? appSettings.ModelFilePath; // Already updated by ChangeModelPath
             appSettings.CalibratedEnergySilenceThreshold = calibratedEnergySilenceThreshold; // Already updated by CalibrateThresholds
             // appSettings.SelectedMicrophoneDevice is updated directly when user selects in SelectMicrophone or Main startup
 
@@ -155,7 +152,7 @@ public class Program
             }
         }
         catch (Exception ex) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine($"\nTranscription error: {ex.Message}"); Console.ResetColor(); }
-        finally { audioStream.Dispose(); }
+        finally { await audioStream.DisposeAsync(); }
     }
 
     private static void StartNewChunk()
@@ -198,10 +195,13 @@ public class Program
         LoadAppSettings();
         Console.WriteLine("Whisper.net Console Demo - Live Recording with Silence Detection");
 
-        if (!File.Exists(currentModelFilePath))
+        if (string.IsNullOrWhiteSpace(currentModelFilePath) || !File.Exists(currentModelFilePath))
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Model file not found: {Path.GetFullPath(currentModelFilePath)}");
+            if (string.IsNullOrWhiteSpace(currentModelFilePath))
+                Console.WriteLine("Model file path is not set.");
+            else
+                Console.WriteLine($"Model file not found: {Path.GetFullPath(currentModelFilePath)}");
             Console.ResetColor();
             return;
         }
