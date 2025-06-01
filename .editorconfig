@@ -1,0 +1,31 @@
+[*.cs]
+indent_style = space
+indent_size = 4
+tab_width = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Brace and Newline Formatting
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_between_query_expression_clauses = true # Usually true by default
+
+# Prevent collapsing blocks
+csharp_preserve_single_line_blocks = false
+
+# Crucial for ensuring braces are present for other rules to act upon
+csharp_prefer_braces = always:suggestion
+
+# Spacing (examples, add more as needed)
+csharp_space_after_cast = false
+csharp_space_after_colon_in_inheritance_clause = true
+csharp_space_after_comma = true
+csharp_space_after_dot = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_around_binary_operators = before_and_after
+csharp_space_before_comma = false
+csharp_space_between_parentheses = none # Example: for ( int i = 0... ) vs for(int i=0...)
+# csharp_space_before_colon_in_inheritance_clause = true # Usually true by default
