@@ -1,31 +1,33 @@
 [*.cs]
-indent_style = space
-indent_size = 4
-tab_width = 4
-end_of_line = lf
-insert_final_newline = true
-trim_trailing_whitespace = true
+# --- Core settings for expanding blocks and statements ---
 
-# Brace and Newline Formatting
+# Put open braces on a new line for everything
 csharp_new_line_before_open_brace = all
+
+# Don't try to keep braced blocks on a single line, even if they are short
+csharp_preserve_single_line_blocks = false
+
+# Ensure 'else', 'catch', 'finally' are on new lines
 csharp_new_line_before_else = true
 csharp_new_line_before_catch = true
 csharp_new_line_before_finally = true
-csharp_new_line_between_query_expression_clauses = true # Usually true by default
 
-# Prevent collapsing blocks
-csharp_preserve_single_line_blocks = false
+# --- Optional but recommended for consistency ---
 
-# Crucial for ensuring braces are present for other rules to act upon
-csharp_prefer_braces = always:suggestion
+# Always add braces for control flow statements (if, else, for, while, etc.)
+# This helps the above rules apply consistently.
+csharp_prefer_braces = always:suggestion # or :warning or :error to be stricter
 
-# Spacing (examples, add more as needed)
-csharp_space_after_cast = false
-csharp_space_after_colon_in_inheritance_clause = true
+# --- Standard indentation and whitespace ---
+indent_style = space
+indent_size = 4
+tab_width = 4
+end_of_line = lf # or crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# --- Example Spacing (these also contribute to readability and line separation) ---
 csharp_space_after_comma = true
-csharp_space_after_dot = false
-csharp_space_after_keywords_in_control_flow_statements = true
-csharp_space_around_binary_operators = before_and_after
 csharp_space_before_comma = false
-csharp_space_between_parentheses = none # Example: for ( int i = 0... ) vs for(int i=0...)
-# csharp_space_before_colon_in_inheritance_clause = true # Usually true by default
+csharp_space_after_keywords_in_control_flow_statements = true # e.g., if (condition)
+csharp_space_around_binary_operators = before_and_after     # e.g., x + y
