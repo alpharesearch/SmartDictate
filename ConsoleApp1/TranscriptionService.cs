@@ -482,7 +482,7 @@ namespace WhisperNetConsoleDemo
                 if (Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(filteredFullText))
                     {
                     OnDebugMessage("Attempting LLM processing for the full text...");
-                    finalTextToDisplay = "\nA: " + filteredFullText + "\nB: " + await ProcessTextWithLLMAsync(filteredFullText);
+                    finalTextToDisplay = "\nA: " + filteredFullText + "\n\nB: " + await ProcessTextWithLLMAsync(filteredFullText);
                     OnDebugMessage("LLM processing complete. Displaying refined text.");
                     }
                 else if (Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(filteredFullText))
@@ -556,31 +556,34 @@ namespace WhisperNetConsoleDemo
                 return inputText;
                 } // Should not happen if InitializeLLM returns true
 
-            OnDebugMessage("Sending text to LLamaSharp for processing...");
+            OnDebugMessage("Sending text to LLamaSharp for processing..." + inputText);
             var outputBuffer = new StringBuilder();
             try
                 {
                 string fullPrompt =
-                    $"<|im_start|>system\n{Settings.LLMSystemPrompt}<|im_end|>\n" +
-                    $"<|im_start|>user\nCorrect grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation:\n\n{inputText}<|im_end|>\n" +
-                    $"<|im_start|>assistant\n";
+                    $"<|im_start|>system \n{Settings.LLMSystemPrompt}<|im_end|>\n" +
+                    $"<|im_start|>user \nCorrect grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation:\n\n{inputText}<|im_end|>\n" +
+                    $"<|im_start|>assistant \n";
 
                 var inferenceParams = new InferenceParams()
-                    {
+                {
                     //Temperature = Settings.LLMTemperature,
                     AntiPrompts = new List<string> { "<|im_end|>", "user:", "User:", "<|user|>", System.Environment.NewLine + "<|im_start|>" }, // More robust anti-prompts
                     MaxTokens = Settings.LLMMaxOutputTokens,
                     //Seed = (int)Settings.LLMSeed,
+
                     // Consider adding other parameters like TopK, TopP, MinP, RepeatPenalty from Settings
                     // PenalizeRepeatLastNElements = 64, // Example
                     // PenaltyRepeat = 1.1f,            // Example
-                    };
+                };
+                OnDebugMessage("\nfullPrompt " + fullPrompt);
+                OnDebugMessage("\ninferenceParams" + inferenceParams.ToString());
 
                 await foreach (var textPart in llmExecutor.InferAsync(fullPrompt, inferenceParams))
-                    {
+                {
                     outputBuffer.Append(textPart);
-                    }
-                OnDebugMessage("LLamaSharp processing successful.");
+                }
+                OnDebugMessage("LLamaSharp processing successful." + outputBuffer.ToString().Trim());
                 return outputBuffer.ToString().Trim();
                 }
             catch (Exception ex)
@@ -950,7 +953,7 @@ namespace WhisperNetConsoleDemo
             await DisposeWhisperResourcesAsync(); // Ensure these are robust
             OnDebugMessage("DisposeAsyncCore: Disposing LLM resources.");
             await DisposeLLMResourcesAsync();     // Ensure these are robust
-            
+
 
             isRecording = false; // Explicitly set state after all cleanup attempts
             OnDebugMessage("TranscriptionService DisposeAsyncCore: Exited.");
