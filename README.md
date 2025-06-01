@@ -26,7 +26,8 @@
 
 ## Notes
 
-- Model files are not included. You must provide your own Whisper and LLM models.
+- Model files are not included. You must provide your own Whisper and LLM models. 
+  I used ggml-base.bin and qwen2-0_5b-instruct-q8_0.gguf for testing.
 - Debug output can be enabled for troubleshooting.
 - All processing is done locally; no audio is sent to external servers.
 
