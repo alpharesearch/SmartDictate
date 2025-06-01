@@ -1,33 +1,37 @@
 ﻿// TranscriptionService.cs
+using Microsoft.Extensions.Configuration;
+using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text; // For StringBuilder
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
-using NAudio.Wave;
-using System.Text.Json;
 using Whisper.net;
-// Ensure AppSettings is accessible (e.g., if in its own file and namespace)
-// using WhisperNetConsoleDemo; 
+using LLama; // Core LLamaSharp
+using LLama.Common; // For ModelParams, InferenceParams
+// using LLama.Abstractions; // If using interfaces like ILLamaExecutor
+// using WhisperNetConsoleDemo; // If AppSettings is in a separate file in this namespace
 
-namespace WhisperNetConsoleDemo // Or your chosen namespace
+namespace WhisperNetConsoleDemo
     {
-    public class TranscriptionService : IDisposable // Implement IDisposable for cleanup
+    public class TranscriptionService : IDisposable // Consider IAsyncDisposable
         {
         // --- Constants ---
         private const double MAX_CHUNK_DURATION_SECONDS = 20.0;
         private const double SILENCE_THRESHOLD_SECONDS = 2.0;
+        // DEFAULT_ENERGY_SILENCE_THRESHOLD and DEFAULT_MODEL_FILE_PATH now come from AppSettings class
         private const int SILENCE_DETECTION_BUFFER_MILLISECONDS = 250;
-        public const int CALIBRATION_DURATION_SECONDS = 3;
+        public const int CALIBRATION_DURATION_SECONDS = 3; // public if Form1 needs it for display
 
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
         public event Action<string>? FullTranscriptionReady;
         public event Action<string>? DebugMessageGenerated;
         public event Action<bool>? RecordingStateChanged;
-        public event Action? SettingsUpdated; // To notify UI to refresh displayed settings
+        public event Action? SettingsUpdated;
 
         // --- State Fields ---
         private bool isRecording = false;
@@ -43,8 +47,15 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
         private Task? currentTranscriptionTask = null;
         private List<string> currentSessionTranscribedText = new List<string>();
 
+        // --- LLamaSharp Specific ---
+        private LLamaWeights? llmModelWeights = null;
+        private LLamaContext? llmContext = null;
+        // Using StatelessExecutor as it's simpler for this kind of one-off processing per chunk
+        // If you needed conversational context, ChatSession or InteractiveExecutor would be better.
+        private StatelessExecutor? llmExecutor = null;
+
         // --- Whisper & App Settings ---
-        private string currentModelFilePath;
+        private string currentWhisperModelPath; // Renamed for clarity
         private WhisperFactory? whisperFactoryInstance = null;
         private WhisperProcessor? whisperProcessorInstance = null;
         private WaveFormat waveFormatForWhisper = new WaveFormat(16000, 16, 1);
@@ -59,14 +70,14 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
             }
         private CalibrationStep currentCalibrationStep = CalibrationStep.None;
         private List<float> calibrationSamples = new List<float>();
-        private bool isCalibrating = false; // Specific flag for calibration recording
+        private bool isCalibrating = false;
 
+        private TaskCompletionSource<bool>? stopProcessingTcs;
 
         public TranscriptionService()
             {
             LoadAppSettings();
-            // Initialize derived settings
-            currentModelFilePath = Settings.ModelFilePath;
+            currentWhisperModelPath = Settings.ModelFilePath; // For Whisper
             calibratedEnergySilenceThreshold = Settings.CalibratedEnergySilenceThreshold;
             }
 
@@ -76,8 +87,6 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
         private void OnRecordingStateChanged(bool nowRecording) => RecordingStateChanged?.Invoke(nowRecording);
         private void OnSettingsUpdated() => SettingsUpdated?.Invoke();
 
-
-        // --- Settings Management ---
         public void LoadAppSettings()
             {
             OnDebugMessage("Loading application settings...");
@@ -90,15 +99,14 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
             if (settingsSection.Exists())
                 {
                 settingsSection.Bind(Settings);
-                OnDebugMessage($"Loaded Model: {Settings.ModelFilePath}, Threshold: {Settings.CalibratedEnergySilenceThreshold}, Mic: {Settings.SelectedMicrophoneDevice}");
+                OnDebugMessage($"Loaded Whisper Model: {Settings.ModelFilePath}, LLM Model: {Settings.LocalLLMModelPath}, Threshold: {Settings.CalibratedEnergySilenceThreshold}, Mic: {Settings.SelectedMicrophoneDevice}");
                 }
             else
                 {
                 OnDebugMessage($"'{appSettingsFilePath}' not found. Using/Creating defaults.");
-                SaveAppSettings(); // Create with defaults
+                SaveAppSettings();
                 }
-            // Apply to working variables
-            currentModelFilePath = Settings.ModelFilePath;
+            currentWhisperModelPath = Settings.ModelFilePath;
             calibratedEnergySilenceThreshold = Settings.CalibratedEnergySilenceThreshold;
             OnSettingsUpdated();
             }
@@ -108,10 +116,9 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
             OnDebugMessage("Saving application settings...");
             try
                 {
-                // Ensure Settings object has the latest runtime values before saving
-                Settings.ModelFilePath = currentModelFilePath;
+                Settings.ModelFilePath = currentWhisperModelPath; // Whisper model
                 Settings.CalibratedEnergySilenceThreshold = calibratedEnergySilenceThreshold;
-                // SelectedMicrophoneDevice is updated within Settings object directly
+                // LLMModelPath, SelectedMicrophoneDevice are updated in Settings object directly
 
                 var configurationToSave = new
                     {
@@ -125,25 +132,21 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
             catch (Exception ex) { OnDebugMessage($"Error saving app settings: {ex.Message}"); }
             }
 
-        // --- Whisper Initialization ---
         public async Task<bool> InitializeWhisperAsync()
             {
             if (whisperProcessorInstance != null)
                 return true;
-            if (string.IsNullOrWhiteSpace(currentModelFilePath) || !File.Exists(currentModelFilePath))
+            if (string.IsNullOrWhiteSpace(currentWhisperModelPath) || !File.Exists(currentWhisperModelPath))
                 {
-                OnDebugMessage("InitializeWhisperAsync: Model path invalid or file not found.");
+                OnDebugMessage($"InitializeWhisperAsync: Whisper Model path invalid: {currentWhisperModelPath}");
                 return false;
                 }
-            OnDebugMessage("Initializing WhisperFactory and WhisperProcessor...");
+            OnDebugMessage($"Initializing Whisper with model: {currentWhisperModelPath}");
             try
                 {
-                await DisposeWhisperResourcesAsync(); // Ensure old ones are gone
-
-                whisperFactoryInstance = WhisperFactory.FromPath(currentModelFilePath);
-                whisperProcessorInstance = whisperFactoryInstance.CreateBuilder()
-                    .WithLanguage("auto") // Or from Settings
-                    .Build();
+                await DisposeWhisperResourcesAsync();
+                whisperFactoryInstance = WhisperFactory.FromPath(currentWhisperModelPath);
+                whisperProcessorInstance = whisperFactoryInstance.CreateBuilder().WithLanguage("auto").Build();
                 OnDebugMessage("WhisperFactory and WhisperProcessor initialized.");
                 return true;
                 }
@@ -156,34 +159,98 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 }
             }
 
-        public async Task DisposeWhisperResourcesAsync() // Changed to async
+        private bool InitializeLLM()
+            {
+            if (llmExecutor != null)
+                return true; // Or check llmModelWeights && llmContext
+
+            if (string.IsNullOrWhiteSpace(Settings.LocalLLMModelPath) || !File.Exists(Settings.LocalLLMModelPath))
+                {
+                OnDebugMessage($"LLM Initialize: LocalLLMModelPath invalid: {Settings.LocalLLMModelPath}");
+                return false;
+                }
+            OnDebugMessage($"Initializing LLamaSharp with model: {Settings.LocalLLMModelPath}");
+            try
+                {
+                DisposeLLMResourcesInternal(); // Dispose previous if any
+
+                var parameters = new ModelParams(Settings.LocalLLMModelPath)
+                    {
+                    ContextSize = (uint)Settings.LLMContextSize,
+                    //Seed = (uint)Settings.LLMSeed,
+                    GpuLayerCount = Settings.UseGpu ? 99 : 0 // 99 for all layers to GPU if possible
+                    };
+                llmModelWeights = LLamaWeights.LoadFromFile(parameters);
+                // llmContext = llmModelWeights.CreateContext(parameters); // This was an older way for context
+                // For StatelessExecutor, you don't always need to create a context separately this way
+                // The executor can manage it or you pass parameters directly to it if needed.
+                // Let's create the executor directly with weights and model params.
+                llmExecutor = new StatelessExecutor(llmModelWeights, parameters);
+
+
+                OnDebugMessage("LLamaSharp initialized successfully.");
+                return true;
+                }
+            catch (Exception ex)
+                {
+                OnDebugMessage($"FATAL: Could not initialize LLamaSharp: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                DisposeLLMResourcesInternal(); // Ensure cleanup on failure
+                return false;
+                }
+            }
+
+        public async Task DisposeWhisperResourcesAsync()
             {
             OnDebugMessage("Disposing WhisperProcessor and WhisperFactory (async).");
             if (whisperProcessorInstance != null)
                 {
-                await whisperProcessorInstance.DisposeAsync();
+                await whisperProcessorInstance.DisposeAsync(); // Use Async for processor
                 whisperProcessorInstance = null;
                 }
-            whisperFactoryInstance?.Dispose(); // Factory is usually IDisposable only
+            whisperFactoryInstance?.Dispose();
             whisperFactoryInstance = null;
             }
 
+        private void DisposeLLMResourcesInternal() // Synchronous for now, can be made async if LLamaSharp uses IAsyncDisposable heavily
+            {
+            OnDebugMessage("Disposing LLamaSharp internal resources.");
+            //llmExecutor?.Dispose(); // StatelessExecutor is IDisposable
+            llmContext?.Dispose(); // If we were creating a context separately
+            llmModelWeights?.Dispose();
+            llmExecutor = null;
+            llmContext = null;
+            llmModelWeights = null;
+            }
 
-        // --- Core Recording and Transcription Logic ---
+        public async Task DisposeLLMResourcesAsync()
+            {
+            OnDebugMessage("Disposing LLamaSharp resources (synchronously within async method for test)...");
+            if (llmModelWeights != null || llmExecutor != null)
+                {
+                // await Task.Run(() => DisposeLLMResourcesInternal()); // Comment out Task.Run
+                DisposeLLMResourcesInternal(); // Call directly
+                OnDebugMessage("LLamaSharp resources disposed state updated.");
+                }
+            else
+                {
+                OnDebugMessage("LLamaSharp resources already null or not initialized for dispose.");
+                }
+            await Task.CompletedTask; // Keep it awaitable if needed elsewhere
+            }
+
+
         private void StartNewChunk()
             {
             try
                 {
                 chunkWaveFile?.Dispose();
                 }
-            catch { }
-            try
-                {
-                currentAudioChunkStream?.Dispose();
-                }
-            catch { }
+            catch { } // This disposes currentAudioChunkStream
+            // currentAudioChunkStream is now disposed by chunkWaveFile, so no need to dispose it separately again.
+            // try { currentAudioChunkStream?.Dispose(); } catch { }
+
             currentAudioChunkStream = new MemoryStream();
-            chunkWaveFile = new WaveFileWriter(currentAudioChunkStream, waveFormatForWhisper); // This will own the stream for writing
+            chunkWaveFile = new WaveFileWriter(currentAudioChunkStream, waveFormatForWhisper);
             chunkStartTime = DateTime.UtcNow;
             lastSpeechTime = DateTime.UtcNow;
             silenceDetectedRecently = false;
@@ -206,7 +273,7 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
         private async void WaveSource_DataAvailable(object? sender, WaveInEventArgs e)
             {
             if (!isRecording || isCalibrating || chunkWaveFile == null || currentAudioChunkStream == null)
-                return; // Check isCalibrating
+                return;
             try
                 {
                 chunkWaveFile.Write(e.Buffer, 0, e.BytesRecorded);
@@ -275,34 +342,34 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 activelyProcessingChunk = true;
                 OnDebugMessage($"Chunk ready. Dur: {chunkDur.TotalSeconds:F1}s, Silence: {silenceDetectedRecently}, Len: {currentAudioChunkStream.Length}");
                 MemoryStream? streamToSend = null;
-                WaveFileWriter? tempChunkFile = chunkWaveFile; // Capture current writer
-                MemoryStream? tempAudioChunkStream = currentAudioChunkStream; // Capture current stream
+                WaveFileWriter? capturedChunkFile = chunkWaveFile; // Capture before StartNewChunk nulls it
+                MemoryStream? capturedAudioChunkStream = currentAudioChunkStream;
 
-                chunkWaveFile = null; // Null out to prevent further writes by this instance of DataAvailable
-                currentAudioChunkStream = null; // This stream will be processed
+                chunkWaveFile = null; // Prevent further writes to this instance
+                currentAudioChunkStream = null; // Prevent further writes
 
                 try
                     {
-                    tempChunkFile?.Flush(); // Flush the captured writer
-                    if (tempAudioChunkStream != null)
+                    capturedChunkFile?.Flush();
+                    if (capturedAudioChunkStream != null && capturedAudioChunkStream.Length > 0)
                         {
-                        tempAudioChunkStream.Position = 0;
+                        capturedAudioChunkStream.Position = 0;
                         streamToSend = new MemoryStream();
-                        await tempAudioChunkStream.CopyToAsync(streamToSend);
+                        await capturedAudioChunkStream.CopyToAsync(streamToSend);
                         streamToSend.Position = 0;
                         }
                     }
-                catch (Exception ex) { OnDebugMessage($"Error prep stream: {ex.Message}"); activelyProcessingChunk = false; streamToSend?.Dispose(); tempChunkFile?.Dispose(); tempAudioChunkStream?.Dispose(); return; }
+                catch (Exception ex) { OnDebugMessage($"Error prep stream: {ex.Message}"); activelyProcessingChunk = false; streamToSend?.Dispose(); capturedChunkFile?.Dispose(); capturedAudioChunkStream?.Dispose(); return; }
                 finally
                     {
-                    tempChunkFile?.Dispose(); // This will dispose tempAudioChunkStream
+                    capturedChunkFile?.Dispose(); // This disposes capturedAudioChunkStream
                     }
 
                 StartNewChunk(); // Prepare for the *next* segment of audio immediately
 
                 if (streamToSend != null && streamToSend.Length > 0)
                     {
-                    currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend); // Renamed
+                    currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend);
                     try
                         {
                         await currentTranscriptionTask;
@@ -312,8 +379,8 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     }
                 else
                     {
-                    activelyProcessingChunk = false; // No stream to send
-                    streamToSend?.Dispose(); // Dispose if created but empty
+                    activelyProcessingChunk = false;
+                    streamToSend?.Dispose();
                     }
                 }
             }
@@ -361,8 +428,9 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     {
                     finalFile.Dispose();
                     }
-                catch (Exception ex) { OnDebugMessage($"Err disposing finalFile: {ex.Message}"); }
+                catch (Exception ex) { OnDebugMessage($"Err disposing finalFile: {ex.Message}"); } // Disposes finalActiveStream too
                 }
+            // Ensure finalActiveStream is disposed if finalFile was null or didn't do it (it should)
             if (finalFile == null || (finalActiveStream != null && finalActiveStream.CanRead))
                 {
                 try
@@ -371,6 +439,7 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     }
                 catch { }
                 }
+
 
             Task? finalTranscribeTask = null;
             if (wasRec && streamToTranscribe != null && streamToTranscribe.Length > 0)
@@ -389,6 +458,7 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 {
                 OnDebugMessage("No audio in FINAL chunk.");
                 }
+            // If streamToTranscribe was created but not used (e.g. too short)
             if (finalTranscribeTask == null && streamToTranscribe != null && streamToTranscribe.CanRead)
                 {
                 try
@@ -400,24 +470,35 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
 
             if (wasRec)
                 {
-                string fullText;
+                string filteredFullText;
                 lock (currentSessionTranscribedText)
                     {
-                    fullText = string.Join(" ", currentSessionTranscribedText).Trim();
+                    var knownPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "[BLANK_AUDIO]", "(silence)", "[ Silence ]", "...", "[INAUDIBLE]", "[MUSIC PLAYING]", "[SOUND]", "[CLICK]" };
+                    var segmentsToPrint = currentSessionTranscribedText.Select(segment => segment.Trim()).Where(trimmedSegment => !string.IsNullOrWhiteSpace(trimmedSegment) && !knownPlaceholders.Contains(trimmedSegment) && !(trimmedSegment.StartsWith("[") && trimmedSegment.EndsWith("]") && trimmedSegment.Length <= 25)).ToList();
+                    filteredFullText = string.Join(" ", segmentsToPrint).Trim();
                     }
-                var knownPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "[BLANK_AUDIO]", "(silence)", "[ Silence ]", "...", "[INAUDIBLE]", "[MUSIC PLAYING]", "[SOUND]", "[CLICK]" };
-                var segmentsToPrint = currentSessionTranscribedText.Select(segment => segment.Trim()).Where(trimmedSegment => !string.IsNullOrWhiteSpace(trimmedSegment) && !knownPlaceholders.Contains(trimmedSegment) && !(trimmedSegment.StartsWith("[") && trimmedSegment.EndsWith("]") && trimmedSegment.Length <= 25)).ToList();
-                fullText = string.Join(" ", segmentsToPrint).Trim();
-                OnFullTranscriptionReady(fullText); // Raise event
+
+                string finalTextToDisplay = filteredFullText;
+                if (Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(filteredFullText))
+                    {
+                    OnDebugMessage("Attempting LLM processing for the full text...");
+                    finalTextToDisplay = "\nA: " + filteredFullText + "\nB: " + await ProcessTextWithLLMAsync(filteredFullText);
+                    OnDebugMessage("LLM processing complete. Displaying refined text.");
+                    }
+                else if (Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(filteredFullText))
+                    {
+                    OnDebugMessage("Full text is empty after filtering, skipping LLM.");
+                    }
+                OnFullTranscriptionReady(finalTextToDisplay);
                 }
             if (e.Exception != null)
                 {
                 OnDebugMessage($"NAudio stop exception: {e.Exception.Message}");
                 }
-            // stopProcessingTcs?.TrySetResult(true); // If Form1 uses TCS for coordination
+            // stopProcessingTcs?.TrySetResult(true); // This should be handled by Form1 if it awaits a TCS
             }
 
-        private async Task TranscribeAudioChunkAsync(Stream audioStream) // Changed name
+        private async Task TranscribeAudioChunkAsync(Stream audioStream)
             {
             OnDebugMessage($"TranscribeAudioChunkAsync - Stream length: {audioStream.Length}");
             if (whisperProcessorInstance == null)
@@ -428,7 +509,7 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 }
             if (audioStream.Length < (waveFormatForWhisper.AverageBytesPerSecond / 10))
                 {
-                OnDebugMessage("Audio stream too short, skipping.");
+                OnDebugMessage("Audio chunk too short.");
                 audioStream.Dispose();
                 return;
                 }
@@ -436,13 +517,13 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
             try
                 {
                 await Task.Yield();
-                OnDebugMessage("Processing audio chunk...");
+                OnDebugMessage("Processing audio chunk with Whisper...");
                 List<string> chunkSegmentsRaw = new List<string>();
                 await foreach (var segment in whisperProcessorInstance.ProcessAsync(audioStream))
                     {
                     string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
                     string rawText = segment.Text.Trim();
-                    OnSegmentTranscribed(timestampedText, rawText); // Raise event for each segment
+                    OnSegmentTranscribed(timestampedText, rawText);
                     chunkSegmentsRaw.Add(rawText);
                     }
                 lock (currentSessionTranscribedText)
@@ -451,8 +532,64 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     }
                 }
             catch (Exception ex) { OnDebugMessage($"Transcription error in chunk: {ex.Message}"); }
-            finally { await audioStream.DisposeAsync(); } // Use DisposeAsync for streams where possible
+            finally { await audioStream.DisposeAsync(); }
             }
+
+        private async Task<string> ProcessTextWithLLMAsync(string inputText)
+            {
+            if (string.IsNullOrWhiteSpace(inputText))
+                return inputText;
+            if (!Settings.ProcessWithLLM)
+                return inputText;
+
+            if (llmExecutor == null) // Or check llmModelWeights
+                {
+                if (!InitializeLLM())
+                    {
+                    OnDebugMessage("LLM could not be initialized. Skipping LLM processing.");
+                    return inputText;
+                    }
+                }
+            if (llmExecutor == null)
+                {
+                OnDebugMessage("LLM Executor still null after init attempt. Skipping.");
+                return inputText;
+                } // Should not happen if InitializeLLM returns true
+
+            OnDebugMessage("Sending text to LLamaSharp for processing...");
+            var outputBuffer = new StringBuilder();
+            try
+                {
+                string fullPrompt =
+                    $"<|im_start|>system\n{Settings.LLMSystemPrompt}<|im_end|>\n" +
+                    $"<|im_start|>user\nCorrect grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation:\n\n{inputText}<|im_end|>\n" +
+                    $"<|im_start|>assistant\n";
+
+                var inferenceParams = new InferenceParams()
+                    {
+                    //Temperature = Settings.LLMTemperature,
+                    AntiPrompts = new List<string> { "<|im_end|>", "user:", "User:", "<|user|>", System.Environment.NewLine + "<|im_start|>" }, // More robust anti-prompts
+                    MaxTokens = Settings.LLMMaxOutputTokens,
+                    //Seed = (int)Settings.LLMSeed,
+                    // Consider adding other parameters like TopK, TopP, MinP, RepeatPenalty from Settings
+                    // PenalizeRepeatLastNElements = 64, // Example
+                    // PenaltyRepeat = 1.1f,            // Example
+                    };
+
+                await foreach (var textPart in llmExecutor.InferAsync(fullPrompt, inferenceParams))
+                    {
+                    outputBuffer.Append(textPart);
+                    }
+                OnDebugMessage("LLamaSharp processing successful.");
+                return outputBuffer.ToString().Trim();
+                }
+            catch (Exception ex)
+                {
+                OnDebugMessage($"Generic error during LLamaSharp processing: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                return inputText;
+                }
+            }
+
 
         // --- Public Methods for Form1 to Call ---
         public async Task<bool> StartRecordingAsync(int deviceNumber)
@@ -479,6 +616,14 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 OnDebugMessage("Whisper init failed.");
                 return false;
                 }
+            if (Settings.ProcessWithLLM && llmExecutor == null) // Pre-initialize LLM if it's going to be used
+                {
+                if (!InitializeLLM())
+                    {
+                    OnDebugMessage("LLM init failed, proceeding without LLM for this session if StartRecording is called again.");
+                    }
+                }
+
 
             OnDebugMessage($"Starting recording with mic [{deviceNumber}]...");
             currentSessionTranscribedText.Clear();
@@ -500,8 +645,7 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 return;
                 }
             OnDebugMessage("StopRecording called externally (e.g., from UI).");
-            waveSource.StopRecording(); // Triggers RecordingStopped event
-                                        // isRecording will be set to false in RecordingStopped
+            waveSource.StopRecording();
             }
 
         public async Task WaitForCurrentTranscriptionToCompleteAsync()
@@ -513,18 +657,9 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     {
                     await currentTranscriptionTask;
                     }
-                catch { /* ignore errors here, already logged */ }
+                catch { /* ignore */ }
                 }
             }
-
-
-        // --- Calibration Logic (can be adapted similarly with events) ---
-        // TranscriptionService.cs
-
-        // (Make sure CALIBRATION_DURATION_SECONDS is a public const if Form1 needs it for display)
-        // public const int CALIBRATION_DURATION_SECONDS = 3;
-
-        // TranscriptionService.cs
 
         public async Task CalibrateThresholdsAsync(int deviceNumber, Action<string> statusUpdateCallback)
             {
@@ -532,17 +667,14 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
             WaveInEvent? calWaveIn = null;
             if (isRecording)
                 {
-                statusUpdateCallback("Cannot calibrate while main recording is active. Please stop first.");
+                statusUpdateCallback("Cannot calibrate while main recording active.");
                 return;
                 }
-
             isCalibrating = true;
-            float typicalSilenceLevel = 0.001f; // Initialize with a default
-            float typicalSpeechLevel = 0.1f;    // Initialize with a default
-
+            float typicalSilenceLevel = 0.001f;
+            float typicalSpeechLevel = 0.1f;
             try
                 {
-                // --- Step 1: Sample Silence ---
                 currentCalibrationStep = CalibrationStep.SamplingSilence;
                 calibrationSamples.Clear();
                 statusUpdateCallback($"Please remain completely silent for {CALIBRATION_DURATION_SECONDS}s...");
@@ -552,10 +684,9 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     if (i == 1)
                         await Task.Delay(700);
                     else
-                        await Task.Delay(1000); // Shorter delay before NOW
+                        await Task.Delay(1000);
                     }
                 statusUpdateCallback("NOW SAMPLING SILENCE...");
-
                 calWaveIn = new WaveInEvent { DeviceNumber = deviceNumber, WaveFormat = waveFormatForWhisper };
                 calWaveIn.DataAvailable += CollectCalibrationSamples_Handler;
                 calWaveIn.StartRecording();
@@ -565,29 +696,25 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 calWaveIn.Dispose();
                 calWaveIn = null;
                 statusUpdateCallback("Silence sampling complete.");
-
                 if (calibrationSamples.Count > 0)
                     {
-                    var orderedSamples = calibrationSamples.OrderBy(x => x).ToList();
-                    typicalSilenceLevel = orderedSamples.ElementAtOrDefault((int)(orderedSamples.Count * 0.95));
+                    var o = calibrationSamples.OrderBy(x => x).ToList();
+                    typicalSilenceLevel = o.ElementAtOrDefault((int)(o.Count * 0.95));
                     if (typicalSilenceLevel < 0.00001f && typicalSilenceLevel >= 0)
                         typicalSilenceLevel = 0.0001f;
                     else if (typicalSilenceLevel < 0)
-                        typicalSilenceLevel = 0.0001f; // Should not happen with Math.Abs
+                        typicalSilenceLevel = 0.0001f;
                     }
                 else
                     {
-                    statusUpdateCallback("No silence samples collected. Using low default for silence level.");
-                    // typicalSilenceLevel keeps its initialized default
+                    statusUpdateCallback("No silence samples. Low default used.");
                     }
-                OnDebugMessage($"Calibrate: Typical silence (95th percentile): {typicalSilenceLevel:F4}");
+                OnDebugMessage($"Calibrate: Typical silence (95th): {typicalSilenceLevel:F4}");
                 statusUpdateCallback($" (Detected silence level: {typicalSilenceLevel:F4})");
 
-
-                // --- Step 2: Sample Speech ---
                 currentCalibrationStep = CalibrationStep.SamplingSpeech_Prompt;
                 calibrationSamples.Clear();
-                statusUpdateCallback($"\nNow, please speak normally for {CALIBRATION_DURATION_SECONDS}s...");
+                statusUpdateCallback($"\nSpeak normally for {CALIBRATION_DURATION_SECONDS}s...");
                 for (int i = CALIBRATION_DURATION_SECONDS; i > 0; i--)
                     {
                     statusUpdateCallback($"Sampling speech in {i}... ");
@@ -598,37 +725,31 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     }
                 statusUpdateCallback("NOW SPEAKING...");
                 currentCalibrationStep = CalibrationStep.SamplingSpeech_Recording;
-
                 calWaveIn = new WaveInEvent { DeviceNumber = deviceNumber, WaveFormat = waveFormatForWhisper };
                 calWaveIn.DataAvailable += CollectCalibrationSamples_Handler;
                 calWaveIn.StartRecording();
                 await Task.Delay(CALIBRATION_DURATION_SECONDS * 1000);
                 calWaveIn.StopRecording();
                 calWaveIn.DataAvailable -= CollectCalibrationSamples_Handler;
-                // calWaveIn will be disposed in the finally block
-
                 if (calibrationSamples.Count > 0)
                     {
-                    var orderedSamples = calibrationSamples.OrderBy(x => x).ToList();
-                    typicalSpeechLevel = orderedSamples.ElementAtOrDefault((int)(orderedSamples.Count * 0.10));
+                    var o = calibrationSamples.OrderBy(x => x).ToList();
+                    typicalSpeechLevel = o.ElementAtOrDefault((int)(o.Count * 0.10));
                     if (typicalSpeechLevel < 0.001f && typicalSpeechLevel >= 0)
                         typicalSpeechLevel = 0.05f;
                     else if (typicalSpeechLevel < 0)
-                        typicalSpeechLevel = 0.05f; // Should not happen
+                        typicalSpeechLevel = 0.05f;
                     }
                 else
                     {
-                    statusUpdateCallback("No speech samples collected. Using default for speech level.");
-                    // typicalSpeechLevel keeps its initialized default
+                    statusUpdateCallback("No speech samples. Default used.");
                     }
-                OnDebugMessage($"Calibrate: Typical speech (10th percentile): {typicalSpeechLevel:F4}");
+                OnDebugMessage($"Calibrate: Typical speech (10th): {typicalSpeechLevel:F4}");
                 statusUpdateCallback($" (Detected speech level: {typicalSpeechLevel:F4})");
 
-
-                // --- Step 3: Calculate and Set New Threshold ---
                 if (typicalSpeechLevel <= typicalSilenceLevel + 0.005f)
                     {
-                    statusUpdateCallback("Warning: Speech level not significantly louder than silence. Calibration may be inaccurate.");
+                    statusUpdateCallback("Warning: Speech not significantly louder.");
                     calibratedEnergySilenceThreshold = typicalSilenceLevel * 2.0f;
                     if (calibratedEnergySilenceThreshold < (AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD / 2) && AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD > 0)
                         calibratedEnergySilenceThreshold = AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD / 2;
@@ -640,31 +761,19 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     float diff = typicalSpeechLevel - typicalSilenceLevel;
                     calibratedEnergySilenceThreshold = typicalSilenceLevel + (diff * 0.25f);
                     }
-                calibratedEnergySilenceThreshold = Math.Max(0.002f, Math.Min(0.35f, calibratedEnergySilenceThreshold)); // Clamp
-
+                calibratedEnergySilenceThreshold = Math.Max(0.002f, Math.Min(0.35f, calibratedEnergySilenceThreshold));
                 Settings.CalibratedEnergySilenceThreshold = calibratedEnergySilenceThreshold;
-                SaveAppSettings(); // Save to appSettings object and file
+                SaveAppSettings();
                 statusUpdateCallback($"--- Calibration Complete ---\nNew Threshold: {calibratedEnergySilenceThreshold:F4} (Saved)");
                 }
-            catch (Exception ex)
-                {
-                statusUpdateCallback($"Calibration Error: {ex.Message}");
-                OnDebugMessage($"Full Calibration Exception: {ex.ToString()}"); // Log full exception for debugging
-                }
-            finally
-                {
-                isCalibrating = false;
-                currentCalibrationStep = CalibrationStep.None;
-                calWaveIn?.Dispose();
-                OnDebugMessage("Calibration process finished in service.");
-                OnSettingsUpdated(); // Notify UI that settings (threshold) might have changed
-                }
+            catch (Exception ex) { statusUpdateCallback($"Calibration Error: {ex.Message}"); OnDebugMessage($"Full CalibEx: {ex}"); }
+            finally { isCalibrating = false; currentCalibrationStep = CalibrationStep.None; calWaveIn?.Dispose(); OnDebugMessage("Calibration process finished."); OnSettingsUpdated(); }
             }
+
         private void CollectCalibrationSamples_Handler(object? sender, WaveInEventArgs e)
             {
             if (!isCalibrating || !(currentCalibrationStep == CalibrationStep.SamplingSilence || currentCalibrationStep == CalibrationStep.SamplingSpeech_Recording))
                 return;
-            // This method's VAD logic is the same as before, adds to `calibrationSamples`
             int tempVADBytesRec = 0;
             int bufferSize = (silenceDetectionBuffer != null && silenceDetectionBuffer.Length > 0) ? silenceDetectionBuffer.Length : (waveFormatForWhisper.AverageBytesPerSecond * SILENCE_DETECTION_BUFFER_MILLISECONDS / 1000);
             if (bufferSize <= 0)
@@ -703,18 +812,18 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 }
             }
 
-
-        // --- Microphone and Model Management ---
         public List<(int Index, string Name)> GetAvailableMicrophones()
             {
             var mics = new List<(int, string)>();
+            if (WaveIn.DeviceCount == 0)
+                return mics; // Return empty if no devices
             for (int i = 0; i < WaveIn.DeviceCount; i++)
                 {
                 try
                     {
                     mics.Add((i, WaveIn.GetCapabilities(i).ProductName));
                     }
-                catch { mics.Add((i, $"Error reading mic {i}")); }
+                catch { mics.Add((i, $"Err mic {i}")); }
                 }
             return mics;
             }
@@ -726,7 +835,7 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                 OnDebugMessage("Cannot change mic while recording.");
                 return false;
                 }
-            if (deviceIndex >= 0 && deviceIndex < WaveIn.DeviceCount)
+            if (WaveIn.DeviceCount > 0 && deviceIndex >= 0 && deviceIndex < WaveIn.DeviceCount) // Check DeviceCount > 0
                 {
                 if (Settings.SelectedMicrophoneDevice != deviceIndex)
                     {
@@ -737,70 +846,132 @@ namespace WhisperNetConsoleDemo // Or your chosen namespace
                     }
                 return true;
                 }
-            OnDebugMessage($"Invalid mic index: {deviceIndex}");
+            OnDebugMessage($"Invalid mic index: {deviceIndex} or no mics available.");
             return false;
             }
 
-        public async Task<bool> ChangeModelPathAsync(string newModelPath)
+        public async Task<bool> ChangeModelPathAsync(string newModelPath) // For Whisper model
             {
             if (isRecording)
                 {
-                OnDebugMessage("Cannot change model while recording.");
+                OnDebugMessage("Cannot change Whisper model while recording.");
                 return false;
                 }
             if (!string.IsNullOrWhiteSpace(newModelPath) && File.Exists(newModelPath))
                 {
-                if (currentModelFilePath != newModelPath)
+                if (currentWhisperModelPath != newModelPath)
                     {
-                    currentModelFilePath = newModelPath;
+                    currentWhisperModelPath = newModelPath;
                     Settings.ModelFilePath = newModelPath;
                     SaveAppSettings();
-                    OnDebugMessage($"Model path updated to: {currentModelFilePath}");
-                    await DisposeWhisperResourcesAsync(); // Dispose old to force re-init
+                    OnDebugMessage($"Whisper model path updated: {currentWhisperModelPath}");
+                    await DisposeWhisperResourcesAsync();
                     OnSettingsUpdated();
                     return true;
                     }
-                OnDebugMessage("New model path is same as current.");
-                return true; // No change but valid
+                OnDebugMessage("New Whisper model path is same as current.");
+                return true;
                 }
-            OnDebugMessage("Invalid model path or file not found.");
+            OnDebugMessage("Invalid Whisper model path or file not found.");
             return false;
             }
 
+        public async Task<bool> ChangeLLMModelPathAsync(string newLLMModelPath)
+            {
+            if (isRecording || activelyProcessingChunk)
+                {
+                OnDebugMessage("Cannot change LLM model while busy.");
+                return false;
+                }
+            if (!string.IsNullOrWhiteSpace(newLLMModelPath) && File.Exists(newLLMModelPath))
+                {
+                if (Settings.LocalLLMModelPath != newLLMModelPath || llmModelWeights == null)
+                    {
+                    Settings.LocalLLMModelPath = newLLMModelPath;
+                    SaveAppSettings();
+                    OnDebugMessage($"LLM model path updated: {Settings.LocalLLMModelPath}");
+                    await DisposeLLMResourcesAsync();
+                    OnSettingsUpdated();
+                    return true;
+                    }
+                OnDebugMessage("New LLM model path is same as current.");
+                return true;
+                }
+            OnDebugMessage("Invalid LLM model path or file not found.");
+            return false;
+            }
 
         // --- IDisposable ---
         private bool disposedValue;
-        protected virtual async Task DisposeAsync(bool disposing) // Changed to async
+        protected virtual async Task DisposeAsyncCore()
+            {
+            OnDebugMessage("TranscriptionService DisposeAsyncCore: Entered.");
+
+            if (isRecording && waveSource != null)
+                {
+                OnDebugMessage("DisposeAsyncCore: Recording was active. Initiating stop sequence.");
+                // We need to ensure RecordingStopped completes before we dispose critical resources.
+                // Re-initialize TCS if it's null or already completed from a previous stop.
+                if (stopProcessingTcs == null || stopProcessingTcs.Task.IsCompleted)
+                    {
+                    stopProcessingTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    }
+
+                waveSource.StopRecording(); // Triggers WaveSource_RecordingStopped
+
+                OnDebugMessage("DisposeAsyncCore: Waiting for WaveSource_RecordingStopped to complete...");
+                try
+                    {
+                    // Add a timeout to prevent indefinite hang if something goes wrong in RecordingStopped
+                    var completedTask = await Task.WhenAny(stopProcessingTcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+                    if (completedTask == stopProcessingTcs.Task)
+                        {
+                        OnDebugMessage("DisposeAsyncCore: WaveSource_RecordingStopped signalled completion.");
+                        }
+                    else
+                        {
+                        OnDebugMessage("DisposeAsyncCore: Timeout waiting for WaveSource_RecordingStopped. Proceeding with disposal.");
+                        }
+                    }
+                catch (Exception ex)
+                    {
+                    OnDebugMessage($"DisposeAsyncCore: Exception while waiting for stopProcessingTcs: {ex.Message}");
+                    }
+                // isRecording should have been set to false by WaveSource_RecordingStopped
+                }
+
+            // Now that any active recording has been stopped and its processing awaited (via TCS),
+            // it should be safer to dispose NAudio resources that weren't handled by the event.
+            OnDebugMessage("DisposeAsyncCore: Disposing remaining NAudio resources.");
+            waveSource?.Dispose();
+            chunkWaveFile?.Dispose();      // WaveFileWriter disposes its stream
+            currentAudioChunkStream?.Dispose(); // Dispose if not owned by WaveFileWriter or if StartNewChunk left it
+            OnDebugMessage("DisposeAsyncCore: Disposing Whisper resources.");
+            await DisposeWhisperResourcesAsync(); // Ensure these are robust
+            OnDebugMessage("DisposeAsyncCore: Disposing LLM resources.");
+            await DisposeLLMResourcesAsync();     // Ensure these are robust
+            
+
+            isRecording = false; // Explicitly set state after all cleanup attempts
+            OnDebugMessage("TranscriptionService DisposeAsyncCore: Exited.");
+            }
+        public async ValueTask DisposeAsync()
             {
             if (!disposedValue)
                 {
-                if (disposing)
-                    {
-                    OnDebugMessage("TranscriptionService DisposeAsync called.");
-                    if (isRecording && waveSource != null)
-                        {
-                        waveSource.StopRecording(); // This is async void, ideally needs more robust shutdown
-                        }
-                    waveSource?.Dispose();
-                    chunkWaveFile?.Dispose(); // This will dispose currentAudioChunkStream due to WaveFileWriter behavior
-                    currentAudioChunkStream?.Dispose(); // Explicit just in case
-
-                    await DisposeWhisperResourcesAsync();
-                    }
+                await DisposeAsyncCore();
                 disposedValue = true;
+                GC.SuppressFinalize(this);
                 }
             }
-
-        public async ValueTask DisposeAsync() // Implement IAsyncDisposable if class implements it
-            {
-            await DisposeAsync(disposing: true);
-            GC.SuppressFinalize(this);
-            }
-
         public void Dispose()
             {
-            DisposeAsync(disposing: true).GetAwaiter().GetResult();
-            GC.SuppressFinalize(this);
+            if (!disposedValue)
+                {
+                DisposeAsyncCore().GetAwaiter().GetResult();
+                disposedValue = true;
+                GC.SuppressFinalize(this);
+                }
             }
         }
     }

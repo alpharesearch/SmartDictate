@@ -105,7 +105,7 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(644, 491);
+            ClientSize = new Size(1276, 491);
             Controls.Add(lblCalibrationStatus);
             Controls.Add(button1);
             Controls.Add(button4);
