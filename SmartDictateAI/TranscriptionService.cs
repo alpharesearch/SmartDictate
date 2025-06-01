@@ -182,7 +182,6 @@ namespace WhisperNetConsoleDemo
                 var parameters = new ModelParams(Settings.LocalLLMModelPath)
                 {
                     ContextSize = (uint)Settings.LLMContextSize,
-                    //Seed = (uint)Settings.LLMSeed,
                     GpuLayerCount = Settings.UseGpu ? 99 : 0 // 99 for all layers to GPU if possible
                 };
                 llmModelWeights = LLamaWeights.LoadFromFile(parameters);
@@ -619,14 +618,28 @@ namespace WhisperNetConsoleDemo
                     $"<|im_start|>system \n{Settings.LLMSystemPrompt}<|im_end|>\n" +
                     $"<|im_start|>user \nCorrect grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation:\n\n{inputText}<|im_end|>\n" +
                     $"<|im_start|>assistant \n";
-
+                uint actualSeedToUse;
+                if (Settings.LLMSeed == 0)
+                {
+                    // Generate a random seed if setting is 0
+                    actualSeedToUse = (uint)new Random().Next(); // Or a more robust RNG if needed
+                    OnDebugMessage($"LLMSeed was 0, generated random seed for this inference: {actualSeedToUse}");
+                }
+                else
+                {
+                    actualSeedToUse = (uint)Settings.LLMSeed;
+                    OnDebugMessage($"Using LLMSeed from settings: {actualSeedToUse}");
+                }
                 var inferenceParams = new InferenceParams()
                 {
                     //Temperature = Settings.LLMTemperature,
                     AntiPrompts = new List<string> { "<|im_end|>", "user:", "User:", "<|user|>", System.Environment.NewLine + "<|im_start|>" }, // More robust anti-prompts
                     MaxTokens = Settings.LLMMaxOutputTokens,
-                    //Seed = (int)Settings.LLMSeed,
-
+                    SamplingPipeline = new LLama.Sampling.DefaultSamplingPipeline() // other pipelines, including custom ones, are possible
+                    {
+                        Seed = actualSeedToUse, // Pass the generated or settings-based seed
+                        Temperature = Settings.LLMTemperature, // Temperature also goes here
+                    }
                     // Consider adding other parameters like TopK, TopP, MinP, RepeatPenalty from Settings
                     // PenalizeRepeatLastNElements = 64, // Example
                     // PenaltyRepeat = 1.1f,            // Example
