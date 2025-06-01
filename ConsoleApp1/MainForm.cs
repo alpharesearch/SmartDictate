@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace WhisperNetConsoleDemo
     {
-    public partial class Form1 : Form
+    public partial class MainForm : Form
         {
         public TranscriptionService transcriptionService;
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
@@ -20,7 +20,7 @@ namespace WhisperNetConsoleDemo
         private Color errorColor = Color.LightCoral;
         private Color calibratingColor = Color.LightYellow;
 
-        public Form1()
+        public MainForm()
             {
             InitializeComponent();
             transcriptionService = new TranscriptionService();

@@ -1,6 +1,6 @@
 ﻿namespace WhisperNetConsoleDemo
     {
-    partial class Form1
+    partial class MainForm
         {
         /// <summary>
         /// Required designer variable.
@@ -157,7 +157,7 @@
             bxLLM.UseVisualStyleBackColor = true;
             bxLLM.CheckedChanged += bxLLM_CheckedChanged;
             // 
-            // Form1
+            // MainForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -174,8 +174,8 @@
             Controls.Add(button2);
             Controls.Add(textBox2);
             Controls.Add(textBox1);
-            Name = "Form1";
-            Text = "WhisperNetDemo";
+            Name = "MainForm";
+            Text = "SmartDictateAI";
             FormClosing += Form1_FormClosing;
             Load += Form1_Load;
             ResumeLayout(false);
