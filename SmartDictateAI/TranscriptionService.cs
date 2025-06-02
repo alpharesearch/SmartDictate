@@ -603,27 +603,22 @@ namespace WhisperNetConsoleDemo
                 {
                     string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
                     string rawText = segment.Text.Trim();
-                    if (isDictationModeChunk)
-                    {
-                        // For dictation mode, we might want to send text immediately
-                        // This requires a new event or directly calling a simulator if service knows about it (not ideal)
-                        // Let's use the existing SegmentTranscribed event but Form1 will know to handle it differently
-                        OnSegmentTranscribed(timestampedText, rawText); // Form1 needs to check IsDictationModeActive
-                    }
-                    else
-                    {
-                        // Normal mode: accumulate for full transcription display
-                        OnSegmentTranscribed(timestampedText, rawText); // For real-time UI update
-                        chunkSegmentsRaw.Add(rawText);
-                    }
+
+                    OnSegmentTranscribed(timestampedText, rawText); // For real-time UI update
+                    chunkSegmentsRaw.Add(rawText);
+
                 }
-                if (!isDictationModeChunk && chunkSegmentsRaw.Count > 0) // Only add to session text if not dictation mode
-                {
-                    lock (currentSessionTranscribedText) { currentSessionTranscribedText.AddRange(chunkSegmentsRaw); }
-                }
+                if (chunkSegmentsRaw.Count > 0) lock (currentSessionTranscribedText) { currentSessionTranscribedText.AddRange(chunkSegmentsRaw); }
+
             }
-            catch (Exception ex) { OnDebugMessage($"Transcription error in chunk: {ex.Message}"); }
-            finally { await audioStream.DisposeAsync(); }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"Transcription error in chunk: {ex.Message}");
+            }
+            finally
+            {
+                await audioStream.DisposeAsync();
+            }
         }
 
         private async Task<string> ProcessTextWithLLMAsync(string inputText)

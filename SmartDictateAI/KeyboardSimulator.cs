@@ -81,8 +81,9 @@ public static class KeyboardSimulator
         "(silence)", "[ Silence ]", "..."
     };
 
-    public static void SendText(string text, bool filterPlaceholders = true)
+    public static void SendText(string text, bool filterPlaceholders = true, Action<string>? logger = null)
     {
+        logger?.Invoke($"KeyboardSimulator.SendText called with: '{text}'");
         if (string.IsNullOrEmpty(text)) return;
         string textToSend = text;
         if (filterPlaceholders)
@@ -118,7 +119,7 @@ public static class KeyboardSimulator
         }
 
         if (string.IsNullOrWhiteSpace(textToSend)) return; // Don't send if filtering resulted in empty string
-
+        logger?.Invoke($"Preparing to SendInput for: '{textToSend}' (Length: {textToSend.Length})");
         List<INPUT> inputs = new List<INPUT>();
         foreach (char c in textToSend)
         {
