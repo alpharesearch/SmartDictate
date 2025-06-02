@@ -27,8 +27,6 @@ namespace WhisperNetConsoleDemo
         // --- Constants for Dictation Mode ---
         private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 7.0;  // Shorter max duration
         private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.8; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
-        private const double MAX_CHUNK_DURATION_SECONDS = 20.0;
-        private const double SILENCE_THRESHOLD_SECONDS = 2.0;
         // DEFAULT_ENERGY_SILENCE_THRESHOLD and DEFAULT_MODEL_FILE_PATH now come from AppSettings class
         private const int SILENCE_DETECTION_BUFFER_MILLISECONDS = 250;
         public const int CALIBRATION_DURATION_SECONDS = 3; // public if Form1 needs it for display
