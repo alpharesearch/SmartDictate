@@ -77,7 +77,10 @@ namespace WhisperNetConsoleDemo
         private readonly List<float> calibrationSamples = new List<float>();
         private bool isCalibrating = false;
 
-        private TaskCompletionSource<bool>? stopProcessingTcs;
+        private TaskCompletionSource<bool>? _currentStopProcessingTcs;
+
+        public bool IsDictationModeActive { get; private set; } = false;
+        private TaskCompletionSource<bool>? _dictationModeStopSignal;
 
         public TranscriptionService()
         {
@@ -384,7 +387,7 @@ namespace WhisperNetConsoleDemo
 
                 if (streamToSend != null && streamToSend.Length > 0)
                 {
-                    currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend);
+                    currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend, this.IsDictationModeActive);
                     try
                     {
                         await currentTranscriptionTask;
@@ -492,7 +495,7 @@ namespace WhisperNetConsoleDemo
                 OnDebugMessage("WaveSource_RecordingStopped - Starting transcription for the final chunk.");
                 // No need to set activelyProcessingChunk = true here, as this is the end of a session,
                 // and no new DataAvailable events for this waveSource should be coming.
-                transcriptionOfThisFinalChunkTask = TranscribeAudioChunkAsync(streamToTranscribeThisFinalChunk);
+                transcriptionOfThisFinalChunkTask = TranscribeAudioChunkAsync(streamToTranscribeThisFinalChunk, this.IsDictationModeActive);
                 // currentTranscriptionTask = transcriptionOfThisFinalChunkTask; // Update global tracker if needed by Form1's Q
 
                 try
@@ -558,12 +561,13 @@ namespace WhisperNetConsoleDemo
 
             if (e.Exception != null) { OnDebugMessage($"NAudio stop exception: {e.Exception.Message}"); }
 
-            this.stopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
+            this._currentStopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
+            this._dictationModeStopSignal?.TrySetResult(true); // Also signal dictation mode stop
             OnDebugMessage("WaveSource_RecordingStopped - Signalled _currentStopProcessingTcs. Event EXITED.");
             // If not exiting, UI needs to be re-enabled / instructions printed
             // This is handled by MainForm awaiting the task from StopRecording() and then calling its own UI updates
         }
-        private async Task TranscribeAudioChunkAsync(Stream audioStream)
+        private async Task TranscribeAudioChunkAsync(Stream audioStream, bool isDictationModeChunk)
         {
             OnDebugMessage($"TranscribeAudioChunkAsync - Stream length: {audioStream.Length}");
             if (whisperProcessorInstance == null)
@@ -588,12 +592,23 @@ namespace WhisperNetConsoleDemo
                 {
                     string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
                     string rawText = segment.Text.Trim();
-                    OnSegmentTranscribed(timestampedText, rawText);
-                    chunkSegmentsRaw.Add(rawText);
+                    if (isDictationModeChunk)
+                    {
+                        // For dictation mode, we might want to send text immediately
+                        // This requires a new event or directly calling a simulator if service knows about it (not ideal)
+                        // Let's use the existing SegmentTranscribed event but Form1 will know to handle it differently
+                        OnSegmentTranscribed(timestampedText, rawText); // Form1 needs to check IsDictationModeActive
+                    }
+                    else
+                    {
+                        // Normal mode: accumulate for full transcription display
+                        OnSegmentTranscribed(timestampedText, rawText); // For real-time UI update
+                        chunkSegmentsRaw.Add(rawText);
+                    }
                 }
-                lock (currentSessionTranscribedText)
+                if (!isDictationModeChunk && chunkSegmentsRaw.Count > 0) // Only add to session text if not dictation mode
                 {
-                    currentSessionTranscribedText.AddRange(chunkSegmentsRaw);
+                    lock (currentSessionTranscribedText) { currentSessionTranscribedText.AddRange(chunkSegmentsRaw); }
                 }
             }
             catch (Exception ex) { OnDebugMessage($"Transcription error in chunk: {ex.Message}"); }
@@ -725,12 +740,12 @@ namespace WhisperNetConsoleDemo
                 return Task.CompletedTask;
             }
             OnDebugMessage("StopRecording called externally (e.g., from UI).");
-            if (stopProcessingTcs == null || stopProcessingTcs.Task.IsCompleted)
+            if (_currentStopProcessingTcs == null || _currentStopProcessingTcs.Task.IsCompleted)
             {
-                stopProcessingTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _currentStopProcessingTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             }
             waveSource.StopRecording();
-            return stopProcessingTcs.Task;
+            return _currentStopProcessingTcs.Task;
         }
 
         public async Task WaitForCurrentTranscriptionToCompleteAsync()
@@ -1022,5 +1037,43 @@ namespace WhisperNetConsoleDemo
             Dispose(true);
             GC.SuppressFinalize(this);
         }
+        // --- Public methods for Dictation Mode ---
+    public async Task<bool> StartDictationModeAsync(int deviceNumber)
+    {
+        if (isRecording) { OnDebugMessage("Already recording (normal or dictation)."); return false; }
+
+        IsDictationModeActive = true; // Set mode
+        _dictationModeStopSignal = new TaskCompletionSource<bool>(); // For awaiting stop of this mode
+
+        // Use the same StartRecordingAsync logic but it will know it's dictation mode
+        bool success = await StartRecordingAsync(deviceNumber);
+        if (!success)
+        {
+            IsDictationModeActive = false; // Revert if start failed
+            _dictationModeStopSignal.TrySetResult(false); // Signal failure
+        }
+        return success;
+    }
+
+    public async Task StopDictationModeAsync()
+    {
+        if (!isRecording || !IsDictationModeActive)
+        {
+            OnDebugMessage("Not in active dictation mode to stop.");
+            IsDictationModeActive = false; // Ensure it's false
+            _dictationModeStopSignal?.TrySetResult(true); // Signal if anyone is waiting
+            return;
+        }
+
+        OnDebugMessage("Stopping dictation mode...");
+        StopRecording(); // This will use the _currentStopProcessingTcs
+
+        if (_dictationModeStopSignal != null)
+        {
+            await _dictationModeStopSignal.Task; // Wait for RecordingStopped to signal this TCS
+        }
+        IsDictationModeActive = false; // Ensure final state
+        OnDebugMessage("Dictation mode fully stopped.");
+    }
     }
 }
