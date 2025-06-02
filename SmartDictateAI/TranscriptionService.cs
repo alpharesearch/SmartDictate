@@ -20,6 +20,13 @@ namespace WhisperNetConsoleDemo
     public class TranscriptionService : IDisposable // Consider IAsyncDisposable
     {
         // --- Constants ---
+        private const double NORMAL_MAX_CHUNK_DURATION_SECONDS = 20.0;
+        private const double NORMAL_SILENCE_THRESHOLD_SECONDS = 2.0;
+        // DEFAULT_ENERGY_SILENCE_THRESHOLD is now calibratedEnergySilenceThreshold
+
+        // --- Constants for Dictation Mode ---
+        private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 7.0;  // Shorter max duration
+        private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.8; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
         private const double MAX_CHUNK_DURATION_SECONDS = 20.0;
         private const double SILENCE_THRESHOLD_SECONDS = 2.0;
         // DEFAULT_ENERGY_SILENCE_THRESHOLD and DEFAULT_MODEL_FILE_PATH now come from AppSettings class
@@ -327,22 +334,28 @@ namespace WhisperNetConsoleDemo
             }
             else
             {
-                if (currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(SILENCE_THRESHOLD_SECONDS))
+                double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
+                                                   DICTATION_SILENCE_THRESHOLD_SECONDS :
+                                                   NORMAL_SILENCE_THRESHOLD_SECONDS;
+                if (currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
                     silenceDetectedRecently = true;
             }
 
             TimeSpan chunkDur = DateTime.UtcNow - chunkStartTime;
             bool process = false;
+            double currentMaxChunkDurationSeconds = this.IsDictationModeActive ?
+                                                DICTATION_MAX_CHUNK_DURATION_SECONDS :
+                                                NORMAL_MAX_CHUNK_DURATION_SECONDS;
             if (currentAudioChunkStream.Length > (waveFormatForWhisper.AverageBytesPerSecond / 2))
             {
-                if (chunkDur >= TimeSpan.FromSeconds(MAX_CHUNK_DURATION_SECONDS))
+                if (chunkDur >= TimeSpan.FromSeconds(currentMaxChunkDurationSeconds))
                 {
-                    OnDebugMessage($"Max duration reached.");
+                    OnDebugMessage($"Max chunk duration ({currentMaxChunkDurationSeconds}s) reached (Mode: {(this.IsDictationModeActive ? "Dictate" : "Normal")}).");
                     process = true;
                 }
                 else if (silenceDetectedRecently)
                 {
-                    OnDebugMessage($"Silence detected, processing.");
+                    OnDebugMessage($"Silence detected, processing chunk (Mode: {(this.IsDictationModeActive ? "Dictate" : "Normal")}).");
                     process = true;
                 }
             }
@@ -1038,42 +1051,42 @@ namespace WhisperNetConsoleDemo
             GC.SuppressFinalize(this);
         }
         // --- Public methods for Dictation Mode ---
-    public async Task<bool> StartDictationModeAsync(int deviceNumber)
-    {
-        if (isRecording) { OnDebugMessage("Already recording (normal or dictation)."); return false; }
-
-        IsDictationModeActive = true; // Set mode
-        _dictationModeStopSignal = new TaskCompletionSource<bool>(); // For awaiting stop of this mode
-
-        // Use the same StartRecordingAsync logic but it will know it's dictation mode
-        bool success = await StartRecordingAsync(deviceNumber);
-        if (!success)
+        public async Task<bool> StartDictationModeAsync(int deviceNumber)
         {
-            IsDictationModeActive = false; // Revert if start failed
-            _dictationModeStopSignal.TrySetResult(false); // Signal failure
-        }
-        return success;
-    }
+            if (isRecording) { OnDebugMessage("Already recording (normal or dictation)."); return false; }
 
-    public async Task StopDictationModeAsync()
-    {
-        if (!isRecording || !IsDictationModeActive)
-        {
-            OnDebugMessage("Not in active dictation mode to stop.");
-            IsDictationModeActive = false; // Ensure it's false
-            _dictationModeStopSignal?.TrySetResult(true); // Signal if anyone is waiting
-            return;
+            IsDictationModeActive = true; // Set mode
+            _dictationModeStopSignal = new TaskCompletionSource<bool>(); // For awaiting stop of this mode
+
+            // Use the same StartRecordingAsync logic but it will know it's dictation mode
+            bool success = await StartRecordingAsync(deviceNumber);
+            if (!success)
+            {
+                IsDictationModeActive = false; // Revert if start failed
+                _dictationModeStopSignal.TrySetResult(false); // Signal failure
+            }
+            return success;
         }
 
-        OnDebugMessage("Stopping dictation mode...");
-        StopRecording(); // This will use the _currentStopProcessingTcs
-
-        if (_dictationModeStopSignal != null)
+        public async Task StopDictationModeAsync()
         {
-            await _dictationModeStopSignal.Task; // Wait for RecordingStopped to signal this TCS
+            if (!isRecording || !IsDictationModeActive)
+            {
+                OnDebugMessage("Not in active dictation mode to stop.");
+                IsDictationModeActive = false; // Ensure it's false
+                _dictationModeStopSignal?.TrySetResult(true); // Signal if anyone is waiting
+                return;
+            }
+
+            OnDebugMessage("Stopping dictation mode...");
+            StopRecording(); // This will use the _currentStopProcessingTcs
+
+            if (_dictationModeStopSignal != null)
+            {
+                await _dictationModeStopSignal.Task; // Wait for RecordingStopped to signal this TCS
+            }
+            IsDictationModeActive = false; // Ensure final state
+            OnDebugMessage("Dictation mode fully stopped.");
         }
-        IsDictationModeActive = false; // Ensure final state
-        OnDebugMessage("Dictation mode fully stopped.");
-    }
     }
 }

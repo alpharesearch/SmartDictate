@@ -127,7 +127,7 @@ namespace WhisperNetConsoleDemo
             }
         }
         // Modify OnSegmentReceived or create a new specific handler
-        private void OnServiceSegmentTranscribedForDictation(string timestampedText, string rawText)
+        private async void OnServiceSegmentTranscribedForDictation(string timestampedText, string rawText)
         {
             if (transcriptionService.Settings.ShowRealtimeTranscription && !isInDictationModeCurrently) // Only for normal mode
             {
@@ -143,8 +143,8 @@ namespace WhisperNetConsoleDemo
                 // {
                 // Ensure this runs on a thread that can send input, or use Invoke if necessary,
                 // but SendInput usually works from various threads.
+                await Task.Delay(50);
                 KeyboardSimulator.SendText(rawText + " "); // Add a space after each segment
-                                                           // });
             }
         }
         private void UpdateStatusIndicator(AppStatus status, string message = "")
