@@ -131,7 +131,7 @@ namespace WhisperNetConsoleDemo
         {
             if (transcriptionService.Settings.ShowRealtimeTranscription && !isInDictationModeCurrently) // Only for normal mode
             {
-                AppendToTranscriptionOutput(timestampedText, true);
+                //AppendToTranscriptionOutput(timestampedText, true);
             }
 
             if (isInDictationModeCurrently && !string.IsNullOrWhiteSpace(rawText))

@@ -448,7 +448,11 @@ namespace WhisperNetConsoleDemo
                 OnDebugMessage("WaveSource_RecordingStopped - Unsubscribing NAudio events.");
                 ws.DataAvailable -= WaveSource_DataAvailable;
                 ws.RecordingStopped -= WaveSource_RecordingStopped; // Unsubscribe from itself
-                try { ws.Dispose(); OnDebugMessage("WaveSource_RecordingStopped - WaveInEvent sender disposed."); }
+                try
+                {
+                    ws.Dispose();
+                    OnDebugMessage("WaveSource_RecordingStopped - WaveInEvent sender disposed.");
+                }
                 catch (Exception ex) { OnDebugMessage($"Err disposing WaveInEvent: {ex.Message}"); }
             }
             // Ensure the class field for waveSource is also nulled if it was the sender
@@ -487,7 +491,10 @@ namespace WhisperNetConsoleDemo
                     // IMPORTANT: Dispose the WaveFileWriter. This will also dispose the
                     // finalActiveStream it was writing to (MemoryStream in this case).
                     OnDebugMessage("WaveSource_RecordingStopped - Disposing final WaveFileWriter (and its stream).");
-                    try { finalFile.Dispose(); }
+                    try
+                    {
+                        finalFile.Dispose();
+                    }
                     catch (Exception ex) { OnDebugMessage($"Err disposing finalFile: {ex.Message}"); }
                 }
             }
@@ -496,7 +503,11 @@ namespace WhisperNetConsoleDemo
             else if (finalActiveStream != null && finalActiveStream.CanRead)
             {
                 OnDebugMessage("WaveSource_RecordingStopped - Disposing lingering finalActiveStream.");
-                try { finalActiveStream.Dispose(); } catch { }
+                try
+                {
+                    finalActiveStream.Dispose();
+                }
+                catch { }
             }
 
 
@@ -526,7 +537,11 @@ namespace WhisperNetConsoleDemo
             if (transcriptionOfThisFinalChunkTask == null && streamToTranscribeThisFinalChunk != null && streamToTranscribeThisFinalChunk.CanRead)
             {
                 OnDebugMessage("WaveSource_RecordingStopped - Disposing unused streamToTranscribeThisFinalChunk.");
-                try { streamToTranscribeThisFinalChunk.Dispose(); } catch { }
+                try
+                {
+                    streamToTranscribeThisFinalChunk.Dispose();
+                }
+                catch { }
             }
 
             // --- Display Full Text (from all chunks in the session) and Signal Completion ---
@@ -570,7 +585,10 @@ namespace WhisperNetConsoleDemo
                 OnFullTranscriptionReady(finalTextToDisplay); // Raise event with combined display text
             }
 
-            if (e.Exception != null) { OnDebugMessage($"NAudio stop exception: {e.Exception.Message}"); }
+            if (e.Exception != null)
+            {
+                OnDebugMessage($"NAudio stop exception: {e.Exception.Message}");
+            }
 
             this._currentStopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
             this._dictationModeStopSignal?.TrySetResult(true); // Also signal dictation mode stop
@@ -603,12 +621,15 @@ namespace WhisperNetConsoleDemo
                 {
                     string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
                     string rawText = segment.Text.Trim();
-
+                    // Normal mode: accumulate for full transcription display
                     OnSegmentTranscribed(timestampedText, rawText); // For real-time UI update
                     chunkSegmentsRaw.Add(rawText);
-
                 }
-                if (chunkSegmentsRaw.Count > 0) lock (currentSessionTranscribedText) { currentSessionTranscribedText.AddRange(chunkSegmentsRaw); }
+                if (chunkSegmentsRaw.Count > 0)
+                    lock (currentSessionTranscribedText)
+                    {
+                        currentSessionTranscribedText.AddRange(chunkSegmentsRaw);
+                    }
 
             }
             catch (Exception ex)
@@ -1046,7 +1067,11 @@ namespace WhisperNetConsoleDemo
         // --- Public methods for Dictation Mode ---
         public async Task<bool> StartDictationModeAsync(int deviceNumber)
         {
-            if (isRecording) { OnDebugMessage("Already recording (normal or dictation)."); return false; }
+            if (isRecording)
+            {
+                OnDebugMessage("Already recording (normal or dictation).");
+                return false;
+            }
 
             IsDictationModeActive = true; // Set mode
             _dictationModeStopSignal = new TaskCompletionSource<bool>(); // For awaiting stop of this mode

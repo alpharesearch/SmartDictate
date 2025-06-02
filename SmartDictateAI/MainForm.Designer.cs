@@ -40,6 +40,7 @@
             btnCopyLLMText = new Button();
             checkBox_debug = new CheckBox();
             bxLLM = new CheckBox();
+            label1 = new Label();
             SuspendLayout();
             // 
             // textBox1
@@ -47,6 +48,7 @@
             textBox1.Location = new Point(12, 77);
             textBox1.Multiline = true;
             textBox1.Name = "textBox1";
+            textBox1.ScrollBars = ScrollBars.Vertical;
             textBox1.Size = new Size(621, 408);
             textBox1.TabIndex = 1;
             // 
@@ -55,6 +57,7 @@
             textBox2.Location = new Point(639, 77);
             textBox2.Multiline = true;
             textBox2.Name = "textBox2";
+            textBox2.ScrollBars = ScrollBars.Vertical;
             textBox2.Size = new Size(631, 408);
             textBox2.TabIndex = 2;
             // 
@@ -157,11 +160,21 @@
             bxLLM.UseVisualStyleBackColor = true;
             bxLLM.CheckedChanged += bxLLM_CheckedChanged;
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(259, 496);
+            label1.Name = "label1";
+            label1.Size = new Size(274, 25);
+            label1.TabIndex = 13;
+            label1.Text = "CTRL + ALT + D to dictate cursor.";
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1276, 559);
+            Controls.Add(label1);
             Controls.Add(bxLLM);
             Controls.Add(checkBox_debug);
             Controls.Add(btnCopyLLMText);
@@ -196,5 +209,6 @@
         private Button btnCopyLLMText;
         private CheckBox checkBox_debug;
         private CheckBox bxLLM;
+        private Label label1;
         }
     }
