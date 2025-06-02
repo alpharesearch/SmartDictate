@@ -1097,7 +1097,7 @@ namespace WhisperNetConsoleDemo
             }
 
             OnDebugMessage("Stopping dictation mode...");
-            StopRecording(); // This will use the _currentStopProcessingTcs
+            await StopRecording(); // This will use the _currentStopProcessingTcs
 
             if (_dictationModeStopSignal != null)
             {

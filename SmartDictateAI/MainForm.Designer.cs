@@ -28,101 +28,111 @@
         /// </summary>
         private void InitializeComponent()
             {
-            textBox1 = new TextBox();
-            textBox2 = new TextBox();
-            button2 = new Button();
-            button3 = new Button();
-            button4 = new Button();
+            textBoxOutput = new TextBox();
+            textBoxDebug = new TextBox();
+            btnCalibration = new Button();
+            btnModelSettings = new Button();
+            btnMicInput = new Button();
             btnStartStop = new Button();
-            lblCalibrationStatus = new Label();
+            lblCalibrationIndicator = new Label();
             lblStatusIndicator = new Label();
             btnCopyRawText = new Button();
             btnCopyLLMText = new Button();
-            checkBox_debug = new CheckBox();
-            bxLLM = new CheckBox();
-            label1 = new Label();
+            chkDebug = new CheckBox();
+            chkLLM = new CheckBox();
+            lblDictateInstruction = new Label();
             SuspendLayout();
             // 
-            // textBox1
+            // textBoxOutput
             // 
-            textBox1.Location = new Point(12, 77);
-            textBox1.Multiline = true;
-            textBox1.Name = "textBox1";
-            textBox1.ScrollBars = ScrollBars.Vertical;
-            textBox1.Size = new Size(621, 408);
-            textBox1.TabIndex = 1;
+            textBoxOutput.Location = new Point(7, 51);
+            textBoxOutput.Margin = new Padding(1, 1, 1, 1);
+            textBoxOutput.Multiline = true;
+            textBoxOutput.Name = "textBoxOutput";
+            textBoxOutput.ScrollBars = ScrollBars.Vertical;
+            textBoxOutput.Size = new Size(380, 354);
+            textBoxOutput.TabIndex = 1;
             // 
-            // textBox2
+            // textBoxDebug
             // 
-            textBox2.Location = new Point(639, 77);
-            textBox2.Multiline = true;
-            textBox2.Name = "textBox2";
-            textBox2.ScrollBars = ScrollBars.Vertical;
-            textBox2.Size = new Size(631, 408);
-            textBox2.TabIndex = 2;
+            textBoxDebug.Location = new Point(394, 51);
+            textBoxDebug.Margin = new Padding(1, 1, 1, 1);
+            textBoxDebug.Multiline = true;
+            textBoxDebug.Name = "textBoxDebug";
+            textBoxDebug.ScrollBars = ScrollBars.Vertical;
+            textBoxDebug.Size = new Size(380, 354);
+            textBoxDebug.TabIndex = 2;
             // 
-            // button2
+            // btnCalibration
             // 
-            button2.Location = new Point(130, 12);
-            button2.Name = "button2";
-            button2.Size = new Size(112, 34);
-            button2.TabIndex = 3;
-            button2.Text = "Calibration";
-            button2.UseVisualStyleBackColor = true;
-            button2.Click += button2_Click;
+            btnCalibration.Location = new Point(66, 7);
+            btnCalibration.Margin = new Padding(1, 1, 1, 1);
+            btnCalibration.Name = "btnCalibration";
+            btnCalibration.Size = new Size(56, 24);
+            btnCalibration.TabIndex = 3;
+            btnCalibration.Text = "Calibration";
+            btnCalibration.UseVisualStyleBackColor = true;
+            btnCalibration.Click += btnCalibration_Click;
             // 
-            // button3
+            // btnModelSettings
             // 
-            button3.Location = new Point(248, 12);
-            button3.Name = "button3";
-            button3.Size = new Size(112, 34);
-            button3.TabIndex = 4;
-            button3.Text = "Model";
-            button3.UseVisualStyleBackColor = true;
-            button3.Click += button3_Click;
+            btnModelSettings.Location = new Point(125, 7);
+            btnModelSettings.Margin = new Padding(1, 1, 1, 1);
+            btnModelSettings.Name = "btnModelSettings";
+            btnModelSettings.Size = new Size(56, 24);
+            btnModelSettings.TabIndex = 4;
+            btnModelSettings.Text = "Model";
+            btnModelSettings.UseVisualStyleBackColor = true;
+            btnModelSettings.Click += btnModelSettings_Click;
             // 
-            // button4
+            // btnMicInput
             // 
-            button4.Location = new Point(366, 12);
-            button4.Name = "button4";
-            button4.Size = new Size(112, 34);
-            button4.TabIndex = 5;
-            button4.Text = "Mic input";
-            button4.UseVisualStyleBackColor = true;
-            button4.Click += button4_Click;
+            btnMicInput.Location = new Point(183, 7);
+            btnMicInput.Margin = new Padding(1, 1, 1, 1);
+            btnMicInput.Name = "btnMicInput";
+            btnMicInput.Size = new Size(56, 24);
+            btnMicInput.TabIndex = 5;
+            btnMicInput.Text = "Mic input";
+            btnMicInput.UseVisualStyleBackColor = true;
+            btnMicInput.Click += btnMicInput_Click;
             // 
             // btnStartStop
             // 
-            btnStartStop.Location = new Point(12, 12);
+            btnStartStop.Location = new Point(7, 7);
+            btnStartStop.Margin = new Padding(1, 1, 1, 1);
             btnStartStop.Name = "btnStartStop";
-            btnStartStop.Size = new Size(112, 34);
+            btnStartStop.Size = new Size(56, 24);
             btnStartStop.TabIndex = 6;
             btnStartStop.Text = "Start";
             btnStartStop.UseVisualStyleBackColor = true;
             btnStartStop.Click += btnStart_Stop_Click;
             // 
-            // lblCalibrationStatus
+            // lblCalibrationIndicator
             // 
-            lblCalibrationStatus.AutoSize = true;
-            lblCalibrationStatus.Location = new Point(130, 49);
-            lblCalibrationStatus.Name = "lblCalibrationStatus";
-            lblCalibrationStatus.Size = new Size(0, 25);
-            lblCalibrationStatus.TabIndex = 7;
+            lblCalibrationIndicator.AutoSize = true;
+            lblCalibrationIndicator.Location = new Point(66, 33);
+            lblCalibrationIndicator.Margin = new Padding(1, 0, 1, 0);
+            lblCalibrationIndicator.Name = "lblCalibrationIndicator";
+            lblCalibrationIndicator.Size = new Size(15, 15);
+            lblCalibrationIndicator.TabIndex = 7;
+            lblCalibrationIndicator.Text = "C";
             // 
             // lblStatusIndicator
             // 
             lblStatusIndicator.AutoSize = true;
-            lblStatusIndicator.Location = new Point(12, 49);
+            lblStatusIndicator.Location = new Point(7, 33);
+            lblStatusIndicator.Margin = new Padding(1, 0, 1, 0);
             lblStatusIndicator.Name = "lblStatusIndicator";
-            lblStatusIndicator.Size = new Size(41, 25);
+            lblStatusIndicator.Size = new Size(26, 15);
             lblStatusIndicator.TabIndex = 8;
             lblStatusIndicator.Text = "Idle";
             // 
             // btnCopyRawText
             // 
-            btnCopyRawText.Location = new Point(12, 491);
+            btnCopyRawText.Location = new Point(10, 407);
+            btnCopyRawText.Margin = new Padding(1, 1, 1, 1);
             btnCopyRawText.Name = "btnCopyRawText";
-            btnCopyRawText.Size = new Size(112, 34);
+            btnCopyRawText.Size = new Size(88, 24);
             btnCopyRawText.TabIndex = 9;
             btnCopyRawText.Text = "Copy Raw";
             btnCopyRawText.UseVisualStyleBackColor = true;
@@ -130,63 +140,68 @@
             // 
             // btnCopyLLMText
             // 
-            btnCopyLLMText.Location = new Point(130, 491);
+            btnCopyLLMText.Location = new Point(100, 407);
+            btnCopyLLMText.Margin = new Padding(1, 1, 1, 1);
             btnCopyLLMText.Name = "btnCopyLLMText";
-            btnCopyLLMText.Size = new Size(112, 34);
+            btnCopyLLMText.Size = new Size(88, 24);
             btnCopyLLMText.TabIndex = 10;
             btnCopyLLMText.Text = "Copy LLM";
             btnCopyLLMText.UseVisualStyleBackColor = true;
             btnCopyLLMText.Click += btnCopyLLMText_Click;
             // 
-            // checkBox_debug
+            // chkDebug
             // 
-            checkBox_debug.AutoSize = true;
-            checkBox_debug.Location = new Point(1178, 17);
-            checkBox_debug.Name = "checkBox_debug";
-            checkBox_debug.Size = new Size(92, 29);
-            checkBox_debug.TabIndex = 11;
-            checkBox_debug.Text = "Debug";
-            checkBox_debug.UseVisualStyleBackColor = true;
-            checkBox_debug.CheckedChanged += debug_checkBox1_CheckedChanged;
+            chkDebug.AutoSize = true;
+            chkDebug.Location = new Point(713, 10);
+            chkDebug.Margin = new Padding(1, 1, 1, 1);
+            chkDebug.Name = "chkDebug";
+            chkDebug.Size = new Size(61, 19);
+            chkDebug.TabIndex = 11;
+            chkDebug.Text = "Debug";
+            chkDebug.UseVisualStyleBackColor = true;
+            chkDebug.CheckedChanged += chkDebug_CheckedChanged;
             // 
-            // bxLLM
+            // chkLLM
             // 
-            bxLLM.AutoSize = true;
-            bxLLM.Location = new Point(1102, 17);
-            bxLLM.Name = "bxLLM";
-            bxLLM.Size = new Size(70, 29);
-            bxLLM.TabIndex = 12;
-            bxLLM.Text = "LLM";
-            bxLLM.UseVisualStyleBackColor = true;
-            bxLLM.CheckedChanged += bxLLM_CheckedChanged;
+            chkLLM.AutoSize = true;
+            chkLLM.Location = new Point(662, 10);
+            chkLLM.Margin = new Padding(1, 1, 1, 1);
+            chkLLM.Name = "chkLLM";
+            chkLLM.Size = new Size(49, 19);
+            chkLLM.TabIndex = 12;
+            chkLLM.Text = "LLM";
+            chkLLM.UseVisualStyleBackColor = true;
+            chkLLM.CheckedChanged += chkLLM_CheckedChanged;
             // 
-            // label1
+            // lblDictateInstruction
             // 
-            label1.AutoSize = true;
-            label1.Location = new Point(259, 496);
-            label1.Name = "label1";
-            label1.Size = new Size(274, 25);
-            label1.TabIndex = 13;
-            label1.Text = "CTRL + ALT + D to dictate cursor.";
+            lblDictateInstruction.AutoSize = true;
+            lblDictateInstruction.Location = new Point(190, 412);
+            lblDictateInstruction.Margin = new Padding(1, 0, 1, 0);
+            lblDictateInstruction.Name = "lblDictateInstruction";
+            lblDictateInstruction.Size = new Size(183, 15);
+            lblDictateInstruction.TabIndex = 13;
+            lblDictateInstruction.Text = "CTRL + ALT + D to dictate cursor.";
             // 
             // MainForm
             // 
-            AutoScaleDimensions = new SizeF(10F, 25F);
-            AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1276, 559);
-            Controls.Add(label1);
-            Controls.Add(bxLLM);
-            Controls.Add(checkBox_debug);
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            ClientSize = new Size(784, 441);
+            Controls.Add(lblDictateInstruction);
+            Controls.Add(chkLLM);
+            Controls.Add(chkDebug);
             Controls.Add(btnCopyLLMText);
             Controls.Add(btnCopyRawText);
             Controls.Add(lblStatusIndicator);
-            Controls.Add(lblCalibrationStatus);
+            Controls.Add(lblCalibrationIndicator);
             Controls.Add(btnStartStop);
-            Controls.Add(button4);
-            Controls.Add(button3);
-            Controls.Add(button2);
-            Controls.Add(textBox2);
-            Controls.Add(textBox1);
+            Controls.Add(btnMicInput);
+            Controls.Add(btnModelSettings);
+            Controls.Add(btnCalibration);
+            Controls.Add(textBoxDebug);
+            Controls.Add(textBoxOutput);
+            Margin = new Padding(1, 1, 1, 1);
             Name = "MainForm";
             Text = "SmartDictateAI";
             FormClosing += Form1_FormClosing;
@@ -198,17 +213,17 @@
         #endregion
 
         private Button btnStartStop;
-        private TextBox textBox1;
-        private TextBox textBox2;
-        private Button button2;
-        private Button button3;
-        private Button button4;
-        private Label lblCalibrationStatus;
+        private TextBox textBoxOutput;
+        private TextBox textBoxDebug;
+        private Button btnCalibration;
+        private Button btnModelSettings;
+        private Button btnMicInput;
+        private Label lblCalibrationIndicator;
         private Label lblStatusIndicator;
         private Button btnCopyRawText;
         private Button btnCopyLLMText;
-        private CheckBox checkBox_debug;
-        private CheckBox bxLLM;
-        private Label label1;
+        private CheckBox chkDebug;
+        private CheckBox chkLLM;
+        private Label lblDictateInstruction;
         }
     }

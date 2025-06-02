@@ -53,12 +53,12 @@ namespace WhisperNetConsoleDemo
             transcriptionService.ProcessingStarted += OnServiceProcessingStarted; // Subscribe
             transcriptionService.ProcessingFinished += OnServiceProcessingFinished; // Subscribe
             // Set initial UI state from settings
-            textBox2.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
+            textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
             UpdateStatusIndicator(AppStatus.Idle);
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;// Consider adding a toggle for debug messages in the UI if desired
-            checkBox_debug.Checked = transcriptionService.Settings.ShowDebugMessages;
-            bxLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
+            chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
+            chkLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
         }
         protected override void WndProc(ref Message m)
         {
@@ -206,7 +206,7 @@ namespace WhisperNetConsoleDemo
             UpdateButtonStates();
             InitializeHotkeyService(); // Initialize hotkeys
             UpdateStatusIndicator(AppStatus.Idle);
-            textBox2.Visible = transcriptionService.Settings.ShowDebugMessages;
+            textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
         }
 
         private async void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -302,21 +302,21 @@ namespace WhisperNetConsoleDemo
         // --- UI Update Helpers (Thread-Safe) ---
         private void AppendToTranscriptionOutput(string text, bool addNewLine = true, bool replaceSelection = false)
         {
-            if (textBox1.InvokeRequired)
+            if (textBoxOutput.InvokeRequired)
             {
-                textBox1.Invoke(new Action<string, bool, bool>(AppendToTranscriptionOutput), text, addNewLine, replaceSelection);
+                textBoxOutput.Invoke(new Action<string, bool, bool>(AppendToTranscriptionOutput), text, addNewLine, replaceSelection);
             }
             else
             {
-                if (replaceSelection && textBox1.SelectionLength > 0)
+                if (replaceSelection && textBoxOutput.SelectionLength > 0)
                 {
-                    textBox1.SelectedText = text + (addNewLine ? Environment.NewLine : "");
+                    textBoxOutput.SelectedText = text + (addNewLine ? Environment.NewLine : "");
                 }
                 else
                 {
-                    textBox1.AppendText(text + (addNewLine ? Environment.NewLine : ""));
+                    textBoxOutput.AppendText(text + (addNewLine ? Environment.NewLine : ""));
                 }
-                textBox1.ScrollToCaret();
+                textBoxOutput.ScrollToCaret();
             }
         }
 
@@ -324,14 +324,14 @@ namespace WhisperNetConsoleDemo
         {
             if (!transcriptionService.Settings.ShowDebugMessages)
                 return; // Check service setting
-            if (textBox2.InvokeRequired)
+            if (textBoxDebug.InvokeRequired)
             {
-                textBox2.Invoke(new Action<string>(AppendToDebugOutput), message);
+                textBoxDebug.Invoke(new Action<string>(AppendToDebugOutput), message);
             }
             else
             {
-                textBox2.AppendText($"{(message.StartsWith("DEBUG:") ? "" : "DEBUG: ")}{message}{Environment.NewLine}");
-                textBox2.ScrollToCaret();
+                textBoxDebug.AppendText($"{(message.StartsWith("DEBUG:") ? "" : "DEBUG: ")}{message}{Environment.NewLine}");
+                textBoxDebug.ScrollToCaret();
             }
         }
 
@@ -343,9 +343,9 @@ namespace WhisperNetConsoleDemo
                 return;
             }
             btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
-            button2.Enabled = !isFormRecordingState; // Calibrate
-            button3.Enabled = !isFormRecordingState; // Model
-            button4.Enabled = !isFormRecordingState; // Mic
+            btnCalibration.Enabled = !isFormRecordingState; // Calibrate
+            btnModelSettings.Enabled = !isFormRecordingState; // Model
+            btnMicInput.Enabled = !isFormRecordingState; // Mic
 
             // Copy button states
             if (!isFormRecordingState) // Only enable copy buttons when not recording
@@ -369,11 +369,11 @@ namespace WhisperNetConsoleDemo
                 this.Invoke(new Action(UpdateUIFromServiceSettings));
                 return;
             }
-            textBox2.Visible = transcriptionService.Settings.ShowDebugMessages;
+            textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
             if (transcriptionService.Settings.ShowDebugMessages)
-                textBox1.Size = new Size(621, 408);
+                textBoxOutput.Size = new Size(380, 354);
             else
-                textBox1.Size = new Size(1252, 408);
+                textBoxOutput.Size = new Size(766, 354);
         }
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
@@ -383,14 +383,14 @@ namespace WhisperNetConsoleDemo
             {
                 MessageBox.Show("No microphones found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 btnStartStop.Enabled = false; // Disable record button
-                button2.Enabled = false; // Disable calibrate
-                button4.Enabled = false; // Disable mic select
+                btnCalibration.Enabled = false; // Disable calibrate
+                btnMicInput.Enabled = false; // Disable mic select
             }
             else
             {
                 btnStartStop.Enabled = true;
-                button2.Enabled = true;
-                button4.Enabled = true;
+                btnCalibration.Enabled = true;
+                btnMicInput.Enabled = true;
                 AppendToDebugOutput($"Populated mics. Current in settings: {transcriptionService.Settings.SelectedMicrophoneDevice}");
             }
         }
@@ -406,7 +406,7 @@ namespace WhisperNetConsoleDemo
                     return;
                 }
 
-                textBox1.Clear(); // Clear previous full transcription
+                textBoxOutput.Clear(); // Clear previous full transcription
                 AppendToDebugOutput("Start recording button clicked.");
                 UpdateStatusIndicator(AppStatus.Processing, "Starting...");
                 bool success = await transcriptionService.StartRecordingAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
@@ -433,7 +433,7 @@ namespace WhisperNetConsoleDemo
 
         // (Make sure you have a Label named lblCalibrationStatus on your form)
 
-        private async void button2_Click(object sender, EventArgs e) // btnCalibrate_Click
+        private async void btnCalibration_Click(object sender, EventArgs e) // btnCalibrate_Click
         {
             if (isFormRecordingState) // Use UI's recording state flag
             {
@@ -447,25 +447,25 @@ namespace WhisperNetConsoleDemo
             }
 
             btnStartStop.Enabled = false; // Disable Record/Stop
-            button2.Enabled = false; // Disable Calibrate
-            button3.Enabled = false; // Disable Model
-            button4.Enabled = false; // Disable Mic
-            lblCalibrationStatus.Text = "Calibration starting..."; // Update status label
-            lblCalibrationStatus.Visible = true;
+            btnCalibration.Enabled = false; // Disable Calibrate
+            btnModelSettings.Enabled = false; // Disable Model
+            btnMicInput.Enabled = false; // Disable Mic
+            lblCalibrationIndicator.Text = "Calibration starting..."; // Update status label
+            lblCalibrationIndicator.Visible = true;
 
             // Define the callback that updates the UI label
             Action<string> uiUpdateAction = (message) =>
             {
-                if (lblCalibrationStatus.InvokeRequired)
+                if (lblCalibrationIndicator.InvokeRequired)
                 {
-                    lblCalibrationStatus.Invoke(() =>
+                    lblCalibrationIndicator.Invoke(() =>
                     {
-                        lblCalibrationStatus.Text = message;
+                        lblCalibrationIndicator.Text = message;
                     });
                 }
                 else
                 {
-                    lblCalibrationStatus.Text = message;
+                    lblCalibrationIndicator.Text = message;
                 }
                 AppendToDebugOutput($"CALIBRATION_UI: {message}"); // Also send to debug log
             };
@@ -475,28 +475,28 @@ namespace WhisperNetConsoleDemo
                 await transcriptionService.CalibrateThresholdsAsync(transcriptionService.Settings.SelectedMicrophoneDevice, uiUpdateAction);
                 // Final message after completion
                 string finalThresholdMessage = $"Calibration complete. New threshold: {transcriptionService.Settings.CalibratedEnergySilenceThreshold:F4}";
-                lblCalibrationStatus.Text = finalThresholdMessage;
+                lblCalibrationIndicator.Text = finalThresholdMessage;
                 MessageBox.Show(finalThresholdMessage, "Calibration Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
                 string errorMsg = $"Calibration failed: {ex.Message}";
-                lblCalibrationStatus.Text = errorMsg;
+                lblCalibrationIndicator.Text = errorMsg;
                 MessageBox.Show(errorMsg, "Calibration Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
                 // lblCalibrationStatus.Visible = false; // Optionally hide after a delay or keep visible
                 btnStartStop.Enabled = true; // Re-enable Record/Stop
-                button2.Enabled = true; // Re-enable Calibrate
-                button3.Enabled = true; // Re-enable Model
-                button4.Enabled = true; // Re-enable Mic
+                btnCalibration.Enabled = true; // Re-enable Calibrate
+                btnModelSettings.Enabled = true; // Re-enable Model
+                btnMicInput.Enabled = true; // Re-enable Mic
                 UpdateUIFromServiceSettings(); // Refresh main UI elements with potentially new threshold
             }
         }
         // Form1.cs
 
-        private async void button3_Click(object sender, EventArgs e) // btnChangeModel_Click (now for both)
+        private async void btnModelSettings_Click(object sender, EventArgs e) // btnChangeModel_Click (now for both)
         {
             if (isFormRecordingState)
             {
@@ -544,7 +544,7 @@ namespace WhisperNetConsoleDemo
             }
         }
 
-        private void button4_Click(object sender, EventArgs e) // btnSelectMic_Click
+        private void btnMicInput_Click(object sender, EventArgs e) // btnSelectMic_Click
         {
             if (isFormRecordingState)
             {
@@ -679,15 +679,15 @@ namespace WhisperNetConsoleDemo
             }
         }
 
-        private void debug_checkBox1_CheckedChanged(object sender, EventArgs e)
+        private void chkDebug_CheckedChanged(object sender, EventArgs e)
         {
-            transcriptionService.Settings.ShowDebugMessages = checkBox_debug.Checked;
+            transcriptionService.Settings.ShowDebugMessages = chkDebug.Checked;
             transcriptionService.SaveAppSettings();
         }
 
-        private void bxLLM_CheckedChanged(object sender, EventArgs e)
+        private void chkLLM_CheckedChanged(object sender, EventArgs e)
         {
-            transcriptionService.Settings.ProcessWithLLM = bxLLM.Checked;
+            transcriptionService.Settings.ProcessWithLLM = chkLLM.Checked;
             transcriptionService.SaveAppSettings();
         }
     }
