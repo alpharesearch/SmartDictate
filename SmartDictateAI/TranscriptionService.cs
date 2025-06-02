@@ -407,151 +407,162 @@ namespace WhisperNetConsoleDemo
             }
         }
 
+        // TranscriptionService.cs
+
+        // ... (Fields including: _currentStopProcessingTcs, currentAudioChunkStream, chunkWaveFile,
+        //      currentSessionTranscribedText, whisperProcessorInstance, Settings, etc. are INSTANCE fields) ...
+
         private async void WaveSource_RecordingStopped(object? sender, StoppedEventArgs e)
         {
             OnDebugMessage("WaveSource_RecordingStopped - Event ENTERED.");
-            ProcessingStarted?.Invoke();
-            bool wasRec = isRecording;
-            isRecording = false;
-            OnRecordingStateChanged(false);
-            MemoryStream? finalActiveStream = currentAudioChunkStream;
-            WaveFileWriter? finalFile = chunkWaveFile;
-            currentAudioChunkStream = null;
-            chunkWaveFile = null;
+            bool wasActuallyRecording = this.isRecording; // Capture current state
+            this.isRecording = false;       // Set recording state to false immediately
+            OnRecordingStateChanged(false); // Notify UI
 
+            // Capture the stream and writer that were active for the very last segment of audio
+            MemoryStream? finalActiveStream = this.currentAudioChunkStream;
+            WaveFileWriter? finalFile = this.chunkWaveFile;
+
+            // Null out class fields so new recordings (if any started immediately after, though unlikely)
+            // or any stray DataAvailable calls don't use these disposed/processed instances.
+            this.currentAudioChunkStream = null;
+            this.chunkWaveFile = null;
+
+            // Dispose the NAudio WaveInEvent source first
             if (sender is WaveInEvent ws)
             {
+                OnDebugMessage("WaveSource_RecordingStopped - Unsubscribing NAudio events.");
                 ws.DataAvailable -= WaveSource_DataAvailable;
-                ws.RecordingStopped -= WaveSource_RecordingStopped;
-                try
-                {
-                    ws.Dispose();
-                }
+                ws.RecordingStopped -= WaveSource_RecordingStopped; // Unsubscribe from itself
+                try { ws.Dispose(); OnDebugMessage("WaveSource_RecordingStopped - WaveInEvent sender disposed."); }
                 catch (Exception ex) { OnDebugMessage($"Err disposing WaveInEvent: {ex.Message}"); }
             }
-            if (ReferenceEquals(sender, waveSource))
-                waveSource = null;
-
-            MemoryStream? streamToTranscribe = null;
-            if (finalFile != null && finalActiveStream != null)
+            // Ensure the class field for waveSource is also nulled if it was the sender
+            if (ReferenceEquals(sender, this.waveSource))
             {
+                this.waveSource = null;
+            }
+
+            MemoryStream? streamToTranscribeThisFinalChunk = null;
+            if (wasActuallyRecording && finalFile != null && finalActiveStream != null)
+            {
+                OnDebugMessage("WaveSource_RecordingStopped - Processing final audio chunk.");
                 try
                 {
-                    finalFile.Flush();
-                    if (wasRec && finalActiveStream.Length > (waveFormatForWhisper.AverageBytesPerSecond / 10))
+                    finalFile.Flush(); // Ensure all buffered data is written to finalActiveStream
+                    OnDebugMessage($"WaveSource_RecordingStopped - Final active stream length after flush: {finalActiveStream.Length}");
+
+                    // Process even if slightly shorter than normal chunks, but not if effectively empty
+                    // Use a very small minimum, e.g., 0.05 seconds of audio data
+                    if (finalActiveStream.Length > (this.waveFormatForWhisper.AverageBytesPerSecond / 20))
                     {
-                        finalActiveStream.Position = 0;
-                        streamToTranscribe = new MemoryStream();
-                        await finalActiveStream.CopyToAsync(streamToTranscribe);
-                        streamToTranscribe.Position = 0;
+                        finalActiveStream.Position = 0; // Rewind the stream to be read from the beginning
+                        streamToTranscribeThisFinalChunk = new MemoryStream();
+                        await finalActiveStream.CopyToAsync(streamToTranscribeThisFinalChunk);
+                        streamToTranscribeThisFinalChunk.Position = 0; // Rewind the new stream for transcription
+                        OnDebugMessage($"WaveSource_RecordingStopped - Copied final chunk of {streamToTranscribeThisFinalChunk.Length} bytes for transcription.");
+                    }
+                    else
+                    {
+                        OnDebugMessage("WaveSource_RecordingStopped - Final active stream was too short to process.");
                     }
                 }
-                catch (Exception ex) { OnDebugMessage($"Err flush/copy final: {ex.Message}"); }
-                try
-                {
-                    finalFile.Dispose();
-                }
-                catch (Exception ex) { OnDebugMessage($"Err disposing finalFile: {ex.Message}"); } // Disposes finalActiveStream too
-            }
-            // Ensure finalActiveStream is disposed if finalFile was null or didn't do it (it should)
-            if (finalFile == null || (finalActiveStream != null && finalActiveStream.CanRead))
-            {
-                try
-                {
-                    finalActiveStream?.Dispose();
-                }
-                catch
-                {
-                    // It is safe to ignore exceptions here because disposing the previous chunkWaveFile is a cleanup step,
-                    // and any errors (such as already disposed) do not affect the logic for starting a new chunk.
-                }
-            }
-
-
-            Task? finalTranscribeTask = null;
-            if (wasRec && streamToTranscribe != null && streamToTranscribe.Length > 0)
-            {
-                activelyProcessingChunk = true;
-                finalTranscribeTask = TranscribeAudioChunkAsync(streamToTranscribe);
-                currentTranscriptionTask = finalTranscribeTask;
-                try
-                {
-                    await finalTranscribeTask;
-                }
-                catch (Exception ex) { OnDebugMessage($"Err FINAL transcription: {ex.Message}"); }
+                catch (Exception ex) { OnDebugMessage($"Err flush/copy final chunk: {ex.Message}"); }
                 finally
                 {
-                    if (ReferenceEquals(currentTranscriptionTask, finalTranscribeTask))
-                        currentTranscriptionTask = null;
-                    activelyProcessingChunk = false;
+                    // IMPORTANT: Dispose the WaveFileWriter. This will also dispose the
+                    // finalActiveStream it was writing to (MemoryStream in this case).
+                    OnDebugMessage("WaveSource_RecordingStopped - Disposing final WaveFileWriter (and its stream).");
+                    try { finalFile.Dispose(); }
+                    catch (Exception ex) { OnDebugMessage($"Err disposing finalFile: {ex.Message}"); }
                 }
             }
-            else if (wasRec)
+            // If finalFile was null (e.g., recording stopped before first DataAvailable after StartNewChunk),
+            // but finalActiveStream (the MemoryStream) existed, ensure it's disposed.
+            else if (finalActiveStream != null && finalActiveStream.CanRead)
             {
-                OnDebugMessage("No audio in FINAL chunk.");
+                OnDebugMessage("WaveSource_RecordingStopped - Disposing lingering finalActiveStream.");
+                try { finalActiveStream.Dispose(); } catch { }
             }
-            // If streamToTranscribe was created but not used (e.g. too short)
-            if (finalTranscribeTask == null && streamToTranscribe != null && streamToTranscribe.CanRead)
+
+
+            Task? transcriptionOfThisFinalChunkTask = null;
+            if (wasActuallyRecording && streamToTranscribeThisFinalChunk != null && streamToTranscribeThisFinalChunk.Length > 0)
             {
+                OnDebugMessage("WaveSource_RecordingStopped - Starting transcription for the final chunk.");
+                // No need to set activelyProcessingChunk = true here, as this is the end of a session,
+                // and no new DataAvailable events for this waveSource should be coming.
+                transcriptionOfThisFinalChunkTask = TranscribeAudioChunkAsync(streamToTranscribeThisFinalChunk);
+                // currentTranscriptionTask = transcriptionOfThisFinalChunkTask; // Update global tracker if needed by Form1's Q
+
                 try
                 {
-                    streamToTranscribe.Dispose();
+                    await transcriptionOfThisFinalChunkTask; // Wait for THIS final transcription
+                    OnDebugMessage("WaveSource_RecordingStopped - Transcription of this final chunk completed.");
                 }
-                catch
-                {
-                    // It is safe to ignore exceptions here because disposing the previous chunkWaveFile is a cleanup step,
-                    // and any errors (such as already disposed) do not affect the logic for starting a new chunk.
-                }
+                catch (Exception ex) { OnDebugMessage($"Err awaiting FINAL transcription task: {ex.Message}"); }
+                // No finally block to reset activelyProcessingChunk here as it's the end of the line for this path
+            }
+            else if (wasActuallyRecording)
+            {
+                OnDebugMessage("WaveSource_RecordingStopped - No substantial final audio chunk to transcribe.");
             }
 
-            if (wasRec)
+            // If streamToTranscribeThisFinalChunk was created but not used (e.g. too short)
+            if (transcriptionOfThisFinalChunkTask == null && streamToTranscribeThisFinalChunk != null && streamToTranscribeThisFinalChunk.CanRead)
+            {
+                OnDebugMessage("WaveSource_RecordingStopped - Disposing unused streamToTranscribeThisFinalChunk.");
+                try { streamToTranscribeThisFinalChunk.Dispose(); } catch { }
+            }
+
+            // --- Display Full Text (from all chunks in the session) and Signal Completion ---
+            if (wasActuallyRecording)
             {
                 string rawFilteredFullText;
-                lock (currentSessionTranscribedText)
+                lock (this.currentSessionTranscribedText) // Access with lock
                 {
                     var knownPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "[BLANK_AUDIO]", "(silence)", "[ Silence ]", "...", "[INAUDIBLE]", "[MUSIC PLAYING]", "[SOUND]", "[CLICK]" };
-                    var segmentsToPrint = currentSessionTranscribedText.Select(segment => segment.Trim()).Where(trimmedSegment => !string.IsNullOrWhiteSpace(trimmedSegment) && !knownPlaceholders.Contains(trimmedSegment) && !(trimmedSegment.StartsWith('[') && trimmedSegment.EndsWith(']') && trimmedSegment.Length <= 25)).ToList();
-                    rawFilteredFullText = string.Join(" ", segmentsToPrint).Trim();
-                }
-                LastRawFilteredText = rawFilteredFullText; // Store the raw text
-                WasLastProcessingWithLLM = false; // Reset LLM status for this session
-                LastLLMProcessedText = string.Empty; // Clear previous LLM text
-                string finalTextToDisplay;
-                string headerA = $"--- RAW Transcription ---{Environment.NewLine}";
-                string headerB = $"{Environment.NewLine}--- LLM Refined ---{Environment.NewLine}";
-
-                if (Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(rawFilteredFullText))
-                {
-                    OnDebugMessage("Attempting LLM processing for the full text...");
-                    // Display a "processing with LLM" message to the UI if desired (via a different event/mechanism)
-                    // For now, let's assume Form1 just waits for the final combined result.
-                    string refinedText = await ProcessTextWithLLMAsync(rawFilteredFullText);
-                    LastLLMProcessedText = refinedText; // Store LLM text
-                    WasLastProcessingWithLLM = true; // Mark that LLM was used and produced output
-                    OnDebugMessage("LLM processing complete.");
-
-                    finalTextToDisplay = $"{headerA}{rawFilteredFullText}{headerB}{refinedText}";
-                }
-                else if (Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(rawFilteredFullText))
-                {
-                    OnDebugMessage("Full text is empty after filtering, skipping LLM processing.");
-                    finalTextToDisplay = $"{headerA}[No speech detected to refine]";
-                }
-                else // LLM not enabled, just show raw
-                {
-                    finalTextToDisplay = $"{headerA}{rawFilteredFullText}";
+                    var segmentsToUse = this.currentSessionTranscribedText
+                        .Select(segment => segment.Trim())
+                        .Where(trimmedSegment =>
+                            !string.IsNullOrWhiteSpace(trimmedSegment) &&
+                            !knownPlaceholders.Contains(trimmedSegment) &&
+                            !(trimmedSegment.StartsWith("[") && trimmedSegment.EndsWith("]") && trimmedSegment.Length <= 25))
+                        .ToList();
+                    rawFilteredFullText = string.Join(" ", segmentsToUse).Trim();
                 }
 
-                OnFullTranscriptionReady(finalTextToDisplay);
+                this.LastRawFilteredText = rawFilteredFullText; // Store for copy button
+                this.WasLastProcessingWithLLM = false;
+                this.LastLLMProcessedText = string.Empty;
+
+                string finalTextToDisplay = $"--- RAW Transcription ---{Environment.NewLine}{rawFilteredFullText}";
+
+                if (this.Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(rawFilteredFullText))
+                {
+                    OnDebugMessage("WaveSource_RecordingStopped: Attempting LLM processing for the full text...");
+                    string refinedText = await ProcessTextWithLLMAsync(rawFilteredFullText); // Assuming ProcessTextWithLLMAsync is instance method
+                    this.LastLLMProcessedText = refinedText;
+                    this.WasLastProcessingWithLLM = true;
+                    OnDebugMessage("WaveSource_RecordingStopped: LLM processing complete.");
+                    finalTextToDisplay += $"{Environment.NewLine}{Environment.NewLine}--- LLM Refined ---{Environment.NewLine}{refinedText}";
+                }
+                else if (this.Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(rawFilteredFullText))
+                {
+                    OnDebugMessage("WaveSource_RecordingStopped: Full text is empty after filtering, skipping LLM.");
+                    finalTextToDisplay += $"{Environment.NewLine}{Environment.NewLine}[No speech detected to refine with LLM]";
+                }
+
+                OnFullTranscriptionReady(finalTextToDisplay); // Raise event with combined display text
             }
-            if (e.Exception != null)
-            {
-                OnDebugMessage($"NAudio stop exception: {e.Exception.Message}");
-            }
-            // stopProcessingTcs?.TrySetResult(true); // This should be handled by Form1 if it awaits a TCS
-            ProcessingFinished?.Invoke();
+
+            if (e.Exception != null) { OnDebugMessage($"NAudio stop exception: {e.Exception.Message}"); }
+
+            this.stopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
+            OnDebugMessage("WaveSource_RecordingStopped - Signalled _currentStopProcessingTcs. Event EXITED.");
+            // If not exiting, UI needs to be re-enabled / instructions printed
+            // This is handled by MainForm awaiting the task from StopRecording() and then calling its own UI updates
         }
-
         private async Task TranscribeAudioChunkAsync(Stream audioStream)
         {
             OnDebugMessage($"TranscribeAudioChunkAsync - Stream length: {audioStream.Length}");
