@@ -10,16 +10,10 @@ namespace WhisperNetConsoleDemo
     public partial class MainForm : Form
     {
         private TranscriptionService transcriptionService;
-        public TranscriptionService TranscriptionService
-        {
-            get
-            {
-                return transcriptionService;
-            }
-        }
         private GlobalHotkeyService globalHotkeyService;
         private bool isInDictationModeCurrently = false; // UI flag for dictation mode
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
+
         private enum AppStatus
         {
             Idle, Calibrating, Listening, Processing, Error
@@ -34,16 +28,6 @@ namespace WhisperNetConsoleDemo
         {
             InitializeComponent();
             transcriptionService = new TranscriptionService();
-            globalHotkeyService = new GlobalHotkeyService(this.Handle); // Pass form handle
-            if (!globalHotkeyService.Register(GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt, Keys.D))
-            {
-                AppendToDebugOutput("Failed to register global hotkey Ctrl+Alt+D!");
-                MessageBox.Show("Could not register global hotkey (Ctrl+Alt+D). It might be in use.", "Hotkey Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-            else
-            {
-                AppendToDebugOutput("Global hotkey Ctrl+Alt+D registered for dictation mode.");
-            }
             // Subscribe to events from TranscriptionService
             transcriptionService.SegmentTranscribed += OnServiceSegmentTranscribedForDictation;
             transcriptionService.DebugMessageGenerated += OnDebugMessageReceived;
@@ -54,12 +38,12 @@ namespace WhisperNetConsoleDemo
             transcriptionService.ProcessingFinished += OnServiceProcessingFinished; // Subscribe
             // Set initial UI state from settings
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
-            UpdateStatusIndicator(AppStatus.Idle);
-            btnCopyRawText.Enabled = false;
-            btnCopyLLMText.Enabled = false;// Consider adding a toggle for debug messages in the UI if desired
             chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
             chkLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
-        }
+            InitializeHotkeyService();
+            btnCopyRawText.Enabled = false;
+            btnCopyLLMText.Enabled = false;
+            }
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);
@@ -69,7 +53,7 @@ namespace WhisperNetConsoleDemo
                 globalHotkeyService.ProcessHotKeyMessage(m.WParam.ToInt32());
             }
         }
-        private void InitializeHotkeyService() // Call this from constructor AFTER InitializeComponent
+        private void InitializeHotkeyService() 
         {
             globalHotkeyService = new GlobalHotkeyService(this.Handle);
             globalHotkeyService.HotKeyPressed += OnGlobalHotKeyPressed;
@@ -77,7 +61,6 @@ namespace WhisperNetConsoleDemo
             if (!globalHotkeyService.Register(GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt, Keys.D))
             {
                 AppendToDebugOutput("Failed to register global hotkey Ctrl+Alt+D!");
-                // Consider informing the user more prominently
             }
             else
             {
@@ -126,6 +109,7 @@ namespace WhisperNetConsoleDemo
                 // this.Activate();
             }
         }
+
         private static readonly Regex PlaceholderRegex = new Regex(
         @"(\[[A-Za-z _\-]+\]|\([A-Za-z _\-]+\)|\.\.\.)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -208,7 +192,6 @@ namespace WhisperNetConsoleDemo
             UpdateUIFromServiceSettings();
             PopulateMicrophoneList();
             UpdateButtonStates();
-            InitializeHotkeyService(); // Initialize hotkeys
             UpdateStatusIndicator(AppStatus.Idle);
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
         }
@@ -228,8 +211,6 @@ namespace WhisperNetConsoleDemo
             }
             if (isFormRecordingState && transcriptionService != null)
             {
-                // Decide if you want to prevent closing or auto-stop
-                // For now, let's auto-stop. The service's Dispose should handle it.
                 AppendToDebugOutput("Form closing during recording, stopping service.");
                 await transcriptionService.StopRecording();
             }
@@ -238,15 +219,9 @@ namespace WhisperNetConsoleDemo
                 globalHotkeyService.HotKeyPressed -= OnGlobalHotKeyPressed; // Unsubscribe
                 globalHotkeyService.Dispose(); // This calls UnregisterHotKey
             }
-            // Await any final processing if transcriptionService.StopRecording initiated it.
-            // This requires more complex async coordination in FormClosing.
-            // For now, we rely on the service's own internal await for the last chunk.
-            // The main risk is the app closing before the async void RecordingStopped event fully completes.
-            // A more robust shutdown might involve a dedicated async method in TranscriptionService.
-
-            // transcriptionService.SaveAppSettings(); // Service should save on its own when settings change
+     
             transcriptionService?.Dispose(); // Or await transcriptionService.DisposeAsync(); if FormClosing can be async
-            Thread.Sleep(3000); // Give time for any final debug messages to flush
+            Thread.Sleep(100); // Give time for any final debug messages to flush
         }
 
         // --- Event Handlers from TranscriptionService ---
@@ -256,7 +231,7 @@ namespace WhisperNetConsoleDemo
         }
         private void OnFullTranscriptionCompleted(string fullText)
         {
-            AppendToTranscriptionOutput(".", true);
+            AppendToTranscriptionOutput("", true);
             AppendToTranscriptionOutput("\n--- Full Transcription (Session Ended) ---", true);
             if (!string.IsNullOrWhiteSpace(fullText))
             {
@@ -318,15 +293,15 @@ namespace WhisperNetConsoleDemo
 
         private void AppendToDebugOutput(string message)
         {
-            if (!transcriptionService.Settings.ShowDebugMessages)
-                return; // Check service setting
             if (textBoxDebug.InvokeRequired)
             {
                 textBoxDebug.Invoke(new Action<string>(AppendToDebugOutput), message);
             }
             else
             {
-                textBoxDebug.AppendText($"{(message.StartsWith("DEBUG:") ? "" : "DEBUG: ")}{message}{Environment.NewLine}");
+                string timestamp = DateTime.Now.ToString("HH:mm:ss.fff ");
+                //textBoxDebug.AppendText($"{timestamp}{(message.StartsWith("DEBUG:") ? "" : "DEBUG: ")}{message}{Environment.NewLine}");
+                textBoxDebug.AppendText($"{timestamp}: {message}{Environment.NewLine}");
                 textBoxDebug.ScrollToCaret();
             }
         }
@@ -366,10 +341,10 @@ namespace WhisperNetConsoleDemo
                 return;
             }
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
-            //if (transcriptionService.Settings.ShowDebugMessages)
-            //    textBoxOutput.Size = new Size(380, 354);
-            //else
-            //    textBoxOutput.Size = new Size(766, 354);
+            if (transcriptionService.Settings.ShowDebugMessages)
+                this.Size = new Size(800, 840);
+            else
+                this.Size = new Size(800, 480);
         }
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
@@ -482,7 +457,7 @@ namespace WhisperNetConsoleDemo
             }
             finally
             {
-                // lblCalibrationStatus.Visible = false; // Optionally hide after a delay or keep visible
+                lblCalibrationIndicator.Visible = false; // Optionally hide after a delay or keep visible
                 btnStartStop.Enabled = true; // Re-enable Record/Stop
                 btnCalibration.Enabled = true; // Re-enable Calibrate
                 btnModelSettings.Enabled = true; // Re-enable Model

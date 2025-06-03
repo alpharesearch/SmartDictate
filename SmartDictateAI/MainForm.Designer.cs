@@ -55,12 +55,12 @@
             // 
             // textBoxDebug
             // 
-            textBoxDebug.Location = new Point(394, 51);
+            textBoxDebug.Location = new Point(7, 433);
             textBoxDebug.Margin = new Padding(1);
             textBoxDebug.Multiline = true;
             textBoxDebug.Name = "textBoxDebug";
             textBoxDebug.ScrollBars = ScrollBars.Vertical;
-            textBoxDebug.Size = new Size(380, 354);
+            textBoxDebug.Size = new Size(767, 354);
             textBoxDebug.TabIndex = 2;
             // 
             // btnCalibration
