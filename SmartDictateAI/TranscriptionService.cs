@@ -11,7 +11,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Whisper.net;
 using LLama; // Core LLamaSharp
-using LLama.Common; // For ModelParams, InferenceParams
+using LLama.Common;
+using System.Xml; // For ModelParams, InferenceParams
 // using LLama.Abstractions; // If using interfaces like ILLamaExecutor
 // using WhisperNetConsoleDemo; // If AppSettings is in a separate file in this namespace
 
@@ -667,10 +668,16 @@ namespace WhisperNetConsoleDemo
             var outputBuffer = new StringBuilder();
             try
             {
+                //<|im_start|>system
+                //{system_prompt}<|im_end|>
+                //<|im_start|>user
+                //{prompt}<|im_end|>
+                //<|im_start|>assistant
+
                 string fullPrompt =
-                    $"<|im_start|>system \n{Settings.LLMSystemPrompt}<|im_end|>\n" +
-                    $"<|im_start|>user \nCorrect grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation:\n\n{inputText}<|im_end|>\n" +
-                    $"<|im_start|>assistant \n";
+                    $"<|im_start|>system\n{Settings.LLMSystemPrompt}<|im_end|>\n" +
+                    $"<|im_start|>user\n{Settings.LLMUserPrompt}\n\n{inputText}<|im_end|>\n" +
+                    $"<|im_start|>assistant\n";
                 uint actualSeedToUse;
                 if (Settings.LLMSeed == 0)
                 {

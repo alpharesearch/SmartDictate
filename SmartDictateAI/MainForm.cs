@@ -256,6 +256,7 @@ namespace WhisperNetConsoleDemo
         }
         private void OnFullTranscriptionCompleted(string fullText)
         {
+            AppendToTranscriptionOutput(".", true);
             AppendToTranscriptionOutput("\n--- Full Transcription (Session Ended) ---", true);
             if (!string.IsNullOrWhiteSpace(fullText))
             {

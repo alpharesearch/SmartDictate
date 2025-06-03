@@ -27,7 +27,7 @@
         /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent()
-            {
+        {
             labelWhisper = new Label();
             txtWhisperModelPath = new TextBox();
             btnBrowseWhisperModel = new Button();
@@ -58,7 +58,7 @@
             // btnBrowseWhisperModel
             // 
             btnBrowseWhisperModel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnBrowseWhisperModel.Location = new Point(639, 29);
+            btnBrowseWhisperModel.Location = new Point(639, 24);
             btnBrowseWhisperModel.Name = "btnBrowseWhisperModel";
             btnBrowseWhisperModel.Size = new Size(104, 36);
             btnBrowseWhisperModel.TabIndex = 5;
@@ -85,7 +85,7 @@
             // btnBrowseLLMModel
             // 
             btnBrowseLLMModel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnBrowseLLMModel.Location = new Point(639, 107);
+            btnBrowseLLMModel.Location = new Point(639, 102);
             btnBrowseLLMModel.Name = "btnBrowseLLMModel";
             btnBrowseLLMModel.Size = new Size(104, 36);
             btnBrowseLLMModel.TabIndex = 2;
@@ -136,7 +136,7 @@
             Text = "Select Models";
             ResumeLayout(false);
             PerformLayout();
-            }
+        }
 
         #endregion
 
