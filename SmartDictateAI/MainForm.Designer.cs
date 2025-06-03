@@ -46,17 +46,17 @@
             // textBoxOutput
             // 
             textBoxOutput.Location = new Point(7, 51);
-            textBoxOutput.Margin = new Padding(1, 1, 1, 1);
+            textBoxOutput.Margin = new Padding(1);
             textBoxOutput.Multiline = true;
             textBoxOutput.Name = "textBoxOutput";
             textBoxOutput.ScrollBars = ScrollBars.Vertical;
-            textBoxOutput.Size = new Size(380, 354);
+            textBoxOutput.Size = new Size(767, 354);
             textBoxOutput.TabIndex = 1;
             // 
             // textBoxDebug
             // 
             textBoxDebug.Location = new Point(394, 51);
-            textBoxDebug.Margin = new Padding(1, 1, 1, 1);
+            textBoxDebug.Margin = new Padding(1);
             textBoxDebug.Multiline = true;
             textBoxDebug.Name = "textBoxDebug";
             textBoxDebug.ScrollBars = ScrollBars.Vertical;
@@ -66,7 +66,7 @@
             // btnCalibration
             // 
             btnCalibration.Location = new Point(66, 7);
-            btnCalibration.Margin = new Padding(1, 1, 1, 1);
+            btnCalibration.Margin = new Padding(1);
             btnCalibration.Name = "btnCalibration";
             btnCalibration.Size = new Size(56, 24);
             btnCalibration.TabIndex = 3;
@@ -77,7 +77,7 @@
             // btnModelSettings
             // 
             btnModelSettings.Location = new Point(125, 7);
-            btnModelSettings.Margin = new Padding(1, 1, 1, 1);
+            btnModelSettings.Margin = new Padding(1);
             btnModelSettings.Name = "btnModelSettings";
             btnModelSettings.Size = new Size(56, 24);
             btnModelSettings.TabIndex = 4;
@@ -88,7 +88,7 @@
             // btnMicInput
             // 
             btnMicInput.Location = new Point(183, 7);
-            btnMicInput.Margin = new Padding(1, 1, 1, 1);
+            btnMicInput.Margin = new Padding(1);
             btnMicInput.Name = "btnMicInput";
             btnMicInput.Size = new Size(56, 24);
             btnMicInput.TabIndex = 5;
@@ -99,7 +99,7 @@
             // btnStartStop
             // 
             btnStartStop.Location = new Point(7, 7);
-            btnStartStop.Margin = new Padding(1, 1, 1, 1);
+            btnStartStop.Margin = new Padding(1);
             btnStartStop.Name = "btnStartStop";
             btnStartStop.Size = new Size(56, 24);
             btnStartStop.TabIndex = 6;
@@ -113,9 +113,8 @@
             lblCalibrationIndicator.Location = new Point(66, 33);
             lblCalibrationIndicator.Margin = new Padding(1, 0, 1, 0);
             lblCalibrationIndicator.Name = "lblCalibrationIndicator";
-            lblCalibrationIndicator.Size = new Size(15, 15);
+            lblCalibrationIndicator.Size = new Size(0, 15);
             lblCalibrationIndicator.TabIndex = 7;
-            lblCalibrationIndicator.Text = "C";
             // 
             // lblStatusIndicator
             // 
@@ -130,7 +129,7 @@
             // btnCopyRawText
             // 
             btnCopyRawText.Location = new Point(10, 407);
-            btnCopyRawText.Margin = new Padding(1, 1, 1, 1);
+            btnCopyRawText.Margin = new Padding(1);
             btnCopyRawText.Name = "btnCopyRawText";
             btnCopyRawText.Size = new Size(88, 24);
             btnCopyRawText.TabIndex = 9;
@@ -141,7 +140,7 @@
             // btnCopyLLMText
             // 
             btnCopyLLMText.Location = new Point(100, 407);
-            btnCopyLLMText.Margin = new Padding(1, 1, 1, 1);
+            btnCopyLLMText.Margin = new Padding(1);
             btnCopyLLMText.Name = "btnCopyLLMText";
             btnCopyLLMText.Size = new Size(88, 24);
             btnCopyLLMText.TabIndex = 10;
@@ -153,7 +152,7 @@
             // 
             chkDebug.AutoSize = true;
             chkDebug.Location = new Point(713, 10);
-            chkDebug.Margin = new Padding(1, 1, 1, 1);
+            chkDebug.Margin = new Padding(1);
             chkDebug.Name = "chkDebug";
             chkDebug.Size = new Size(61, 19);
             chkDebug.TabIndex = 11;
@@ -165,7 +164,7 @@
             // 
             chkLLM.AutoSize = true;
             chkLLM.Location = new Point(662, 10);
-            chkLLM.Margin = new Padding(1, 1, 1, 1);
+            chkLLM.Margin = new Padding(1);
             chkLLM.Name = "chkLLM";
             chkLLM.Size = new Size(49, 19);
             chkLLM.TabIndex = 12;
@@ -185,8 +184,8 @@
             // 
             // MainForm
             // 
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 441);
             Controls.Add(lblDictateInstruction);
             Controls.Add(chkLLM);
@@ -201,7 +200,7 @@
             Controls.Add(btnCalibration);
             Controls.Add(textBoxDebug);
             Controls.Add(textBoxOutput);
-            Margin = new Padding(1, 1, 1, 1);
+            Margin = new Padding(1);
             Name = "MainForm";
             Text = "SmartDictateAI";
             FormClosing += Form1_FormClosing;

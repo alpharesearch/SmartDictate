@@ -43,7 +43,7 @@
             labelWhisper.AutoSize = true;
             labelWhisper.Location = new Point(13, 9);
             labelWhisper.Name = "labelWhisper";
-            labelWhisper.Size = new Size(176, 25);
+            labelWhisper.Size = new Size(117, 15);
             labelWhisper.TabIndex = 7;
             labelWhisper.Text = "Whisper Model Path:";
             // 
@@ -52,13 +52,13 @@
             txtWhisperModelPath.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             txtWhisperModelPath.Location = new Point(13, 37);
             txtWhisperModelPath.Name = "txtWhisperModelPath";
-            txtWhisperModelPath.Size = new Size(620, 31);
+            txtWhisperModelPath.Size = new Size(620, 23);
             txtWhisperModelPath.TabIndex = 6;
             // 
             // btnBrowseWhisperModel
             // 
             btnBrowseWhisperModel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnBrowseWhisperModel.Location = new Point(639, 34);
+            btnBrowseWhisperModel.Location = new Point(639, 29);
             btnBrowseWhisperModel.Name = "btnBrowseWhisperModel";
             btnBrowseWhisperModel.Size = new Size(104, 36);
             btnBrowseWhisperModel.TabIndex = 5;
@@ -70,7 +70,7 @@
             labelLLM.AutoSize = true;
             labelLLM.Location = new Point(13, 87);
             labelLLM.Name = "labelLLM";
-            labelLLM.Size = new Size(143, 25);
+            labelLLM.Size = new Size(97, 15);
             labelLLM.TabIndex = 4;
             labelLLM.Text = "LLM Model Path:";
             // 
@@ -79,15 +79,15 @@
             txtLLMModelPath.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             txtLLMModelPath.Location = new Point(12, 115);
             txtLLMModelPath.Name = "txtLLMModelPath";
-            txtLLMModelPath.Size = new Size(621, 31);
+            txtLLMModelPath.Size = new Size(621, 23);
             txtLLMModelPath.TabIndex = 3;
             // 
             // btnBrowseLLMModel
             // 
             btnBrowseLLMModel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnBrowseLLMModel.Location = new Point(639, 115);
+            btnBrowseLLMModel.Location = new Point(639, 107);
             btnBrowseLLMModel.Name = "btnBrowseLLMModel";
-            btnBrowseLLMModel.Size = new Size(104, 31);
+            btnBrowseLLMModel.Size = new Size(104, 36);
             btnBrowseLLMModel.TabIndex = 2;
             btnBrowseLLMModel.Text = "Browse...";
             btnBrowseLLMModel.Click += btnBrowseLLMModel_Click;
@@ -116,6 +116,8 @@
             // ModelSelectionForm
             // 
             AcceptButton = btnOK;
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
             CancelButton = btnCancel;
             ClientSize = new Size(753, 224);
             Controls.Add(btnCancel);

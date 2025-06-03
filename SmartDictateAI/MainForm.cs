@@ -370,10 +370,10 @@ namespace WhisperNetConsoleDemo
                 return;
             }
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
-            if (transcriptionService.Settings.ShowDebugMessages)
-                textBoxOutput.Size = new Size(380, 354);
-            else
-                textBoxOutput.Size = new Size(766, 354);
+            //if (transcriptionService.Settings.ShowDebugMessages)
+            //    textBoxOutput.Size = new Size(380, 354);
+            //else
+            //    textBoxOutput.Size = new Size(766, 354);
         }
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
