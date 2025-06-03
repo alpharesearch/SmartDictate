@@ -1,6 +1,7 @@
 ﻿// Form1.cs
 using System;
 using System.IO; // For Path
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 // using WhisperNetConsoleDemo; // If AppSettings and TranscriptionService are in this namespace
 
@@ -33,7 +34,6 @@ namespace WhisperNetConsoleDemo
         {
             InitializeComponent();
             transcriptionService = new TranscriptionService();
-            transcriptionService.SegmentTranscribed += OnServiceSegmentTranscribedForDictation; // New specific handler
             globalHotkeyService = new GlobalHotkeyService(this.Handle); // Pass form handle
             if (!globalHotkeyService.Register(GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt, Keys.D))
             {
@@ -45,8 +45,8 @@ namespace WhisperNetConsoleDemo
                 AppendToDebugOutput("Global hotkey Ctrl+Alt+D registered for dictation mode.");
             }
             // Subscribe to events from TranscriptionService
+            transcriptionService.SegmentTranscribed += OnServiceSegmentTranscribedForDictation;
             transcriptionService.DebugMessageGenerated += OnDebugMessageReceived;
-            transcriptionService.SegmentTranscribed += OnSegmentReceived;
             transcriptionService.FullTranscriptionReady += OnFullTranscriptionCompleted;
             transcriptionService.RecordingStateChanged += OnServiceRecordingStateChanged;
             transcriptionService.SettingsUpdated += OnServiceSettingsUpdated;
@@ -126,12 +126,16 @@ namespace WhisperNetConsoleDemo
                 // this.Activate();
             }
         }
-        // Modify OnSegmentReceived or create a new specific handler
+        private static readonly Regex PlaceholderRegex = new Regex(
+        @"(\[[A-Za-z _\-]+\]|\([A-Za-z _\-]+\)|\.\.\.)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private async void OnServiceSegmentTranscribedForDictation(string timestampedText, string rawText)
         {
-            if (transcriptionService.Settings.ShowRealtimeTranscription && !isInDictationModeCurrently) // Only for normal mode
+            string rawTextFilter = PlaceholderRegex.Replace(rawText.Trim(), string.Empty).Trim();
+            if (transcriptionService.Settings.ShowRealtimeTranscription)
             {
-                //AppendToTranscriptionOutput(timestampedText, true);
+                if(!string.IsNullOrWhiteSpace(rawTextFilter)) AppendToTranscriptionOutput(rawTextFilter, false);
+                AppendToDebugOutput("INFO: " + timestampedText + "\n");
             }
 
             if (isInDictationModeCurrently && !string.IsNullOrWhiteSpace(rawText))
@@ -215,7 +219,7 @@ namespace WhisperNetConsoleDemo
             {
                 AppendToDebugOutput("Form1_FormClosing: Unsubscribing from TranscriptionService events.");
                 transcriptionService.DebugMessageGenerated -= OnDebugMessageReceived;
-                transcriptionService.SegmentTranscribed -= OnSegmentReceived;
+                transcriptionService.SegmentTranscribed -= OnServiceSegmentTranscribedForDictation;
                 transcriptionService.FullTranscriptionReady -= OnFullTranscriptionCompleted;
                 transcriptionService.RecordingStateChanged -= OnServiceRecordingStateChanged;
                 transcriptionService.SettingsUpdated -= OnServiceSettingsUpdated;
@@ -250,15 +254,6 @@ namespace WhisperNetConsoleDemo
         {
             AppendToDebugOutput(message);
         }
-
-        private void OnSegmentReceived(string timestampedText, string rawText)
-        {
-            if (transcriptionService.Settings.ShowRealtimeTranscription)
-            {
-                AppendToTranscriptionOutput(timestampedText, true);
-            }
-        }
-
         private void OnFullTranscriptionCompleted(string fullText)
         {
             AppendToTranscriptionOutput("\n--- Full Transcription (Session Ended) ---", true);
