@@ -68,3 +68,5 @@ Configure your model paths in `appsettings.json`:
 ---
 
 *Built with ❤️ using .NET 9 and Windows Forms.*
+
+![icon](https://github.com/user-attachments/assets/4c0f3e6c-e1cd-4110-9468-e9102d7f2681)
