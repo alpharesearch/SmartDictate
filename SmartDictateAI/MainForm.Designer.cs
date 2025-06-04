@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
             {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             textBoxOutput = new TextBox();
             textBoxDebug = new TextBox();
             btnCalibration = new Button();
@@ -200,6 +201,7 @@
             Controls.Add(btnCalibration);
             Controls.Add(textBoxDebug);
             Controls.Add(textBoxOutput);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(1);
             Name = "MainForm";
             Text = "SmartDictateAI";
