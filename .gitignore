@@ -50,7 +50,7 @@ appsettings.Development.json # Often contains secrets or local overrides
 ggml-base.bin
 qwen2-0_5b-instruct-q8_0.gguf
 *.gguf
-*.bin # Be careful with generic *.bin if you have legitimate small binaries
+*.bin
 
 # OS generated files
 ## Windows
@@ -69,3 +69,4 @@ $RECYCLE.BIN/
 ## Linux
 *~
 # End of ignores
+

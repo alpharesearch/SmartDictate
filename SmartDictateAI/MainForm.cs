@@ -1,8 +1,10 @@
 ﻿// Form1.cs
+using CommunityToolkit.HighPerformance;
 using System;
 using System.IO; // For Path
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 // using WhisperNetConsoleDemo; // If AppSettings and TranscriptionService are in this namespace
 
 namespace WhisperNetConsoleDemo
@@ -40,10 +42,12 @@ namespace WhisperNetConsoleDemo
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
             chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
             chkLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
+            globalHotkeyService = new GlobalHotkeyService(this.Handle);
+            globalHotkeyService.HotKeyPressed += OnGlobalHotKeyPressed;
             InitializeHotkeyService();
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;
-            }
+        }
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);
@@ -53,10 +57,8 @@ namespace WhisperNetConsoleDemo
                 globalHotkeyService.ProcessHotKeyMessage(m.WParam.ToInt32());
             }
         }
-        private void InitializeHotkeyService() 
+        private void InitializeHotkeyService()
         {
-            globalHotkeyService = new GlobalHotkeyService(this.Handle);
-            globalHotkeyService.HotKeyPressed += OnGlobalHotKeyPressed;
             // Example: Register Ctrl+Alt+D
             if (!globalHotkeyService.Register(GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt, Keys.D))
             {
@@ -219,7 +221,7 @@ namespace WhisperNetConsoleDemo
                 globalHotkeyService.HotKeyPressed -= OnGlobalHotKeyPressed; // Unsubscribe
                 globalHotkeyService.Dispose(); // This calls UnregisterHotKey
             }
-     
+
             transcriptionService?.Dispose(); // Or await transcriptionService.DisposeAsync(); if FormClosing can be async
             Thread.Sleep(100); // Give time for any final debug messages to flush
         }
@@ -660,6 +662,16 @@ namespace WhisperNetConsoleDemo
         {
             transcriptionService.Settings.ProcessWithLLM = chkLLM.Checked;
             transcriptionService.SaveAppSettings();
+        }
+
+        private async void btnLLMcb_Click(object sender, EventArgs e)
+        {
+            var LLM = await transcriptionService.ProcessTextWithLLMAsync(transcriptionService.LastRawFilteredText);
+            textBoxOutput.Text += Environment.NewLine;
+            textBoxOutput.Text += transcriptionService.LastRawFilteredText;
+            textBoxOutput.Text += Environment.NewLine;
+            textBoxOutput.Text += LLM;
+            transcriptionService.LastLLMProcessedText = LLM;
         }
     }
 }

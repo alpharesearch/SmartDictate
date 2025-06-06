@@ -55,7 +55,7 @@ namespace WhisperNetConsoleDemo
         private Task? currentTranscriptionTask = null;
         private readonly List<string> currentSessionTranscribedText = new List<string>();
         public string LastRawFilteredText { get; private set; } = string.Empty;
-        public string LastLLMProcessedText { get; private set; } = string.Empty;
+        public string LastLLMProcessedText { get; set; } = string.Empty;
         public bool WasLastProcessingWithLLM { get; private set; } = false; // To know if LLM text is valid
 
         // --- LLamaSharp Specific ---
@@ -643,13 +643,14 @@ namespace WhisperNetConsoleDemo
                 }
             }
 
-        private async Task<string> ProcessTextWithLLMAsync(string inputText)
-            {
+        public async Task<string> ProcessTextWithLLMAsync(string inputText, string setSystemPrompt = "", string setUserPrompt = "")
+        {
             if (string.IsNullOrWhiteSpace(inputText))
                 return inputText;
             if (!Settings.ProcessWithLLM)
                 return inputText;
-
+            var systemPrompt = (setSystemPrompt == "") ? Settings.LLMSystemPrompt : setSystemPrompt;
+            var userPrompt = (setUserPrompt == "") ? Settings.LLMSystemPrompt : setUserPrompt;
             if (llmExecutor == null)
                 {
                 if (!InitializeLLM())
@@ -668,16 +669,11 @@ namespace WhisperNetConsoleDemo
             var outputBuffer = new StringBuilder();
             try
                 {
-                //<|im_start|>system
-                //{system_prompt}<|im_end|>
-                //<|im_start|>user
-                //{prompt}<|im_end|>
-                //<|im_start|>assistant
 
                 string fullPrompt =
-                    $"<|im_start|>system\n{Settings.LLMSystemPrompt}<|im_end|>\n" +
-                    $"<|im_start|>user\n{Settings.LLMUserPrompt}\n\n{inputText}<|im_end|>\n" +
-                    $"<|im_start|>assistant\n";
+                    $"<|im_start|>system \n{systemPrompt}<|im_end|>\n" +
+                    $"<|im_start|>user \n{userPrompt}\n\n{inputText}<|im_end|>\n" +
+                    $"<|im_start|>assistant \n";
                 uint actualSeedToUse;
                 if (Settings.LLMSeed == 0)
                     {

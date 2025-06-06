@@ -39,20 +39,24 @@ public class GlobalHotkeyService : IDisposable
     }
 
     public bool Register(FsModifiers modifier, Keys key)
-    {
+        {
         if (_hWnd == IntPtr.Zero && Application.OpenForms.Count > 0)
-        {
-            _hWnd = Application.OpenForms[0].Handle; // Try to get main form's handle if not provided
-        }
+            {
+            var mainForm = Application.OpenForms[0];
+            if (mainForm != null)
+                {
+                _hWnd = mainForm.Handle;
+                }
+            }
         if (_hWnd == IntPtr.Zero)
-        {
+            {
             // Cannot register without a window handle for application-wide hotkey
             // Or create a NativeWindow to listen for messages.
             Console.WriteLine("ERROR: Cannot register global hotkey without a window handle.");
             return false;
-        }
+            }
         return RegisterHotKey(_hWnd, HOTKEY_ID, (uint)modifier, (uint)key);
-    }
+        }
 
     public void Unregister()
     {

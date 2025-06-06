@@ -27,7 +27,7 @@
         /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent()
-            {
+        {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             textBoxOutput = new TextBox();
             textBoxDebug = new TextBox();
@@ -42,6 +42,7 @@
             chkDebug = new CheckBox();
             chkLLM = new CheckBox();
             lblDictateInstruction = new Label();
+            btnLLMcb = new Button();
             SuspendLayout();
             // 
             // textBoxOutput
@@ -179,15 +180,26 @@
             lblDictateInstruction.Location = new Point(190, 412);
             lblDictateInstruction.Margin = new Padding(1, 0, 1, 0);
             lblDictateInstruction.Name = "lblDictateInstruction";
-            lblDictateInstruction.Size = new Size(183, 15);
+            lblDictateInstruction.Size = new Size(181, 15);
             lblDictateInstruction.TabIndex = 13;
             lblDictateInstruction.Text = "CTRL + ALT + D to dictate cursor.";
+            // 
+            // btnLLMcb
+            // 
+            btnLLMcb.Location = new Point(375, 407);
+            btnLLMcb.Name = "btnLLMcb";
+            btnLLMcb.Size = new Size(75, 24);
+            btnLLMcb.TabIndex = 14;
+            btnLLMcb.Text = "Rerun LLM";
+            btnLLMcb.UseVisualStyleBackColor = true;
+            btnLLMcb.Click += btnLLMcb_Click;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 441);
+            Controls.Add(btnLLMcb);
             Controls.Add(lblDictateInstruction);
             Controls.Add(chkLLM);
             Controls.Add(chkDebug);
@@ -209,7 +221,7 @@
             Load += Form1_Load;
             ResumeLayout(false);
             PerformLayout();
-            }
+        }
 
         #endregion
 
@@ -226,5 +238,6 @@
         private CheckBox chkDebug;
         private CheckBox chkLLM;
         private Label lblDictateInstruction;
-        }
+        private Button btnLLMcb;
+    }
     }

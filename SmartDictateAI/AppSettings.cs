@@ -18,7 +18,7 @@ namespace WhisperNetConsoleDemo
         public bool ShowDebugMessages { get; set; } = false;
         public bool ProcessWithLLM { get; set; } = false;
         public string LocalLLMModelPath { get; set; } = "qwen2-0_5b-instruct-q8_0.gguf"; // Example path
-        public int LLMContextSize { get; set; } = 4096; // Or a sensible default for 0.5B model like 2048
+        public int LLMContextSize { get; set; } = 32768; // Or a sensible default for 0.5B model like 2048
         public int LLMSeed { get; set; } = 0; // 0 for random, any other int for fixed seed
         public float LLMTemperature { get; set; } = 0.6f;
         public int LLMMaxOutputTokens { get; set; } = -1; // Max tokens LLM should generate
