@@ -13,6 +13,12 @@ namespace WhisperNetConsoleDemo
     {
         private TranscriptionService transcriptionService;
         private GlobalHotkeyService globalHotkeyService;
+
+        // ADDED: second hotkey ID and a simple “busy” guard
+        private const int HOTKEY_ID_DICTATION = 9000;   // Matches your existing service default
+        private const int HOTKEY_ID_PROOFREAD = 9001;   // New: proofread clipboard
+        private bool _isProofreadingClipboard = false;  // Prevent double-triggering
+
         private bool isInDictationModeCurrently = false; // UI flag for dictation mode
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
 
@@ -42,21 +48,27 @@ namespace WhisperNetConsoleDemo
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
             chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
             chkLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
+
             globalHotkeyService = new GlobalHotkeyService(this.Handle);
             globalHotkeyService.HotKeyPressed += OnGlobalHotKeyPressed;
+
             InitializeHotkeyService();
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;
         }
+
         protected override void WndProc(ref Message m)
         {
-            base.WndProc(ref m);
             const int WM_HOTKEY = 0x0312;
+
             if (m.Msg == WM_HOTKEY)
             {
                 globalHotkeyService.ProcessHotKeyMessage(m.WParam.ToInt32());
             }
+
+            base.WndProc(ref m);
         }
+
         private void InitializeHotkeyService()
         {
             // Example: Register Ctrl+Alt+D
@@ -68,10 +80,31 @@ namespace WhisperNetConsoleDemo
             {
                 AppendToDebugOutput("Global hotkey Ctrl+Alt+D registered for dictation mode.");
             }
+            // Example: Register Ctrl+Alt+G for clipboard proofreading
+            if (!globalHotkeyService.Register(
+                    HOTKEY_ID_PROOFREAD,
+                    GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt,
+                    Keys.P,
+                    () => _ = ProofreadClipboardAsyncSafe()))
+            {
+                AppendToDebugOutput("Failed to register global hotkey Ctrl+Alt+P for clipboard proofreading!");
+            }
+            else
+            {
+                AppendToDebugOutput("Global hotkey Ctrl+Alt+P registered for clipboard proofreading.");
+            }
         }
+
+        private DateTime _lastHotkeyTime = DateTime.MinValue;
         private async void OnGlobalHotKeyPressed()
         {
+            // Debounce: ignore triggers within 400ms
+            if ((DateTime.UtcNow - _lastHotkeyTime).TotalMilliseconds < 400)
+                return;
+            _lastHotkeyTime = DateTime.UtcNow;
+
             AppendToDebugOutput("Global Hotkey Pressed!");
+
             if (!isInDictationModeCurrently) // If not in dictation mode, start it
             {
                 if (isFormRecordingState) // If normal recording is active
@@ -112,32 +145,91 @@ namespace WhisperNetConsoleDemo
             }
         }
 
+        // ADDED: Proofread clipboard using your existing LLM pipeline
+        private async Task ProofreadClipboardAsyncSafe()
+        {
+            if (_isProofreadingClipboard)
+                return;
+
+            try
+            {
+                _isProofreadingClipboard = true;
+
+                var backup = Clipboard.GetText();
+
+                // 1. Copy selected text
+                SendKeys.SendWait("^c");
+
+                // Small delay to allow clipboard to update
+                await Task.Delay(100);
+
+                var clip = Clipboard.GetText();
+
+                if (string.IsNullOrWhiteSpace(clip))
+                {
+                    AppendToDebugOutput("Clipboard proofreading: nothing selected.");
+                    return;
+                }
+                else AppendToDebugOutput("Clipboard proofreading selection:" + clip);
+
+                // Optional: skip if dictation active
+                if (isInDictationModeCurrently)
+                {
+                    AppendToDebugOutput("Clipboard proofreading skipped: dictation active.");
+                    return;
+                }
+
+                AppendToDebugOutput("Clipboard proofreading: sending text to LLM...");
+
+                var refined = await transcriptionService.ProcessTextWithLLMAsync(clip);
+
+                if (!string.IsNullOrWhiteSpace(refined))
+                {
+                    Clipboard.SetText(refined);
+
+                    // 5. Paste result (replaces selection)
+                    await Task.Delay(50); // brief pause before paste
+                    SendKeys.SendWait("^v");
+
+                    await Task.Delay(50);
+                    Clipboard.SetText(backup);
+
+                    AppendToDebugOutput("Clipboard proofreading: replaced selection: " + backup);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToDebugOutput("Clipboard proofreading error: " + ex.Message);
+            }
+            finally
+            {
+                _isProofreadingClipboard = false;
+            }
+        }
+
+
         private static readonly Regex PlaceholderRegex = new Regex(
         @"(\[[A-Za-z _\-]+\]|\([A-Za-z _\-]+\)|\.\.\.)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private async void OnServiceSegmentTranscribedForDictation(string timestampedText, string rawText)
         {
             string rawTextFilter = PlaceholderRegex.Replace(rawText.Trim(), string.Empty).Trim();
             if (transcriptionService.Settings.ShowRealtimeTranscription)
             {
-                if(!string.IsNullOrWhiteSpace(rawTextFilter)) AppendToTranscriptionOutput(rawTextFilter, false);
+                if (!string.IsNullOrWhiteSpace(rawTextFilter)) AppendToTranscriptionOutput(rawTextFilter, false);
                 AppendToDebugOutput("INFO: " + timestampedText + "\n");
             }
 
             if (isInDictationModeCurrently && !string.IsNullOrWhiteSpace(rawText))
             {
                 AppendToDebugOutput($"Dictation output: {rawText}");
-                // Add a small delay to allow focus to switch if user just pressed hotkey
-                // This is a bit of a hack; more robust focus management might be needed.
-                // Task.Delay(100).ContinueWith(_ =>
-                // {
-                // Ensure this runs on a thread that can send input, or use Invoke if necessary,
-                // but SendInput usually works from various threads.
                 await Task.Delay(50);
                 Action<string> loggerAction = (logMsg) => AppendToDebugOutput($"SIMULATOR: {logMsg}");
                 KeyboardSimulator.SendText(rawText + " ", true, loggerAction); // Add a space after each segment
             }
         }
+
         private void UpdateStatusIndicator(AppStatus status, string message = "")
         {
             if (lblStatusIndicator.InvokeRequired)
@@ -176,6 +268,7 @@ namespace WhisperNetConsoleDemo
             lblStatusIndicator.BackColor = displayColor;
             lblStatusIndicator.ForeColor = displayColor.GetBrightness() < 0.5 ? Color.White : Color.Black; // Contrast for text
         }
+
         private bool activelyProcessingChunkInUI = false;
         private void OnServiceProcessingStarted()
         {
@@ -186,9 +279,9 @@ namespace WhisperNetConsoleDemo
         private void OnServiceProcessingFinished()
         {
             activelyProcessingChunkInUI = false;
-            // If not recording anymore, go to Idle. If still recording, go back to Listening.
             UpdateStatusIndicator(isFormRecordingState ? AppStatus.Listening : AppStatus.Idle);
         }
+
         private void Form1_Load(object sender, EventArgs e)
         {
             UpdateUIFromServiceSettings();
@@ -222,8 +315,8 @@ namespace WhisperNetConsoleDemo
                 globalHotkeyService.Dispose(); // This calls UnregisterHotKey
             }
 
-            transcriptionService?.Dispose(); // Or await transcriptionService.DisposeAsync(); if FormClosing can be async
-            Thread.Sleep(100); // Give time for any final debug messages to flush
+            transcriptionService?.Dispose();
+            Thread.Sleep(100);
         }
 
         // --- Event Handlers from TranscriptionService ---

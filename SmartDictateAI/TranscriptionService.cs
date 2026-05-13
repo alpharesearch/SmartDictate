@@ -650,7 +650,7 @@ namespace WhisperNetConsoleDemo
             if (!Settings.ProcessWithLLM)
                 return inputText;
             var systemPrompt = (setSystemPrompt == "") ? Settings.LLMSystemPrompt : setSystemPrompt;
-            var userPrompt = (setUserPrompt == "") ? Settings.LLMSystemPrompt : setUserPrompt;
+            var userPrompt = (setUserPrompt == "") ? Settings.LLMUserPrompt : setUserPrompt;
             if (llmExecutor == null)
                 {
                 if (!InitializeLLM())
@@ -688,7 +688,6 @@ namespace WhisperNetConsoleDemo
                     }
                 var inferenceParams = new InferenceParams()
                     {
-                    //Temperature = Settings.LLMTemperature,
                     AntiPrompts = new List<string> { "<|im_end|>", "user:", "User:", "<|user|>", System.Environment.NewLine + "<|im_start|>" }, // More robust anti-prompts
                     MaxTokens = Settings.LLMMaxOutputTokens,
                     SamplingPipeline = new LLama.Sampling.DefaultSamplingPipeline() // other pipelines, including custom ones, are possible

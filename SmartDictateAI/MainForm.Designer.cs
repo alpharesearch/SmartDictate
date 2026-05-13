@@ -43,6 +43,7 @@
             chkLLM = new CheckBox();
             lblDictateInstruction = new Label();
             btnLLMcb = new Button();
+            label1 = new Label();
             SuspendLayout();
             // 
             // textBoxOutput
@@ -180,13 +181,13 @@
             lblDictateInstruction.Location = new Point(190, 412);
             lblDictateInstruction.Margin = new Padding(1, 0, 1, 0);
             lblDictateInstruction.Name = "lblDictateInstruction";
-            lblDictateInstruction.Size = new Size(181, 15);
+            lblDictateInstruction.Size = new Size(183, 15);
             lblDictateInstruction.TabIndex = 13;
             lblDictateInstruction.Text = "CTRL + ALT + D to dictate cursor.";
             // 
             // btnLLMcb
             // 
-            btnLLMcb.Location = new Point(375, 407);
+            btnLLMcb.Location = new Point(699, 407);
             btnLLMcb.Name = "btnLLMcb";
             btnLLMcb.Size = new Size(75, 24);
             btnLLMcb.TabIndex = 14;
@@ -194,11 +195,22 @@
             btnLLMcb.UseVisualStyleBackColor = true;
             btnLLMcb.Click += btnLLMcb_Click;
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(401, 412);
+            label1.Margin = new Padding(1, 0, 1, 0);
+            label1.Name = "label1";
+            label1.Size = new Size(254, 15);
+            label1.TabIndex = 15;
+            label1.Text = "CTRL + ALT + P to proofreads clipboard locally";
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 441);
+            Controls.Add(label1);
             Controls.Add(btnLLMcb);
             Controls.Add(lblDictateInstruction);
             Controls.Add(chkLLM);
@@ -239,5 +251,6 @@
         private CheckBox chkLLM;
         private Label lblDictateInstruction;
         private Button btnLLMcb;
+        private Label label1;
     }
     }
