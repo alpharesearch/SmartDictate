@@ -42,6 +42,7 @@ namespace WhisperNetConsoleDemo
         public event Action? ProcessingFinished;
 
         // --- State Fields ---
+        private readonly object _audioStreamLock = new object();
         private bool isRecording = false;
         private WaveInEvent? waveSource = null;
         private MemoryStream? currentAudioChunkStream = null;
@@ -287,13 +288,17 @@ namespace WhisperNetConsoleDemo
 
         private async void WaveSource_DataAvailable(object? sender, WaveInEventArgs e)
             {
-            if (!isRecording || isCalibrating || chunkWaveFile == null || currentAudioChunkStream == null)
-                return;
-            try
+
+            lock (_audioStreamLock)
+            {
+                if (!isRecording || isCalibrating || chunkWaveFile == null || currentAudioChunkStream == null)
+                    return;
+                try
                 {
-                chunkWaveFile.Write(e.Buffer, 0, e.BytesRecorded);
+                    chunkWaveFile.Write(e.Buffer, 0, e.BytesRecorded);
                 }
-            catch (ObjectDisposedException) { OnDebugMessage("DataAvailable - Write to disposed chunkWaveFile."); return; }
+                catch (ObjectDisposedException) { OnDebugMessage("DataAvailable - Write to disposed chunkWaveFile."); return; }
+            }
 
             bool speechInSeg = false;
             int bytesProcEvent = e.BytesRecorded, offset = 0;
@@ -359,28 +364,48 @@ namespace WhisperNetConsoleDemo
                     }
                 }
             if (!activelyProcessingChunk && process)
-                {
+            {
                 ProcessingStarted?.Invoke();
                 activelyProcessingChunk = true;
                 OnDebugMessage($"Chunk ready. Dur: {chunkDur.TotalSeconds:F1}s, Silence: {silenceDetectedRecently}, Len: {currentAudioChunkStream.Length}");
+
                 MemoryStream? streamToSend = null;
-                WaveFileWriter? capturedChunkFile = chunkWaveFile; // Capture before StartNewChunk nulls it
-                MemoryStream? capturedAudioChunkStream = currentAudioChunkStream;
+                WaveFileWriter? capturedChunkFile;
+                MemoryStream? capturedAudioChunkStream;
 
-                chunkWaveFile = null; // Prevent further writes to this instance
-                currentAudioChunkStream = null; // Prevent further writes
+                // 1. Create the new streams for the NEXT chunk BEFORE stopping the current one
+                var nextAudioChunkStream = new MemoryStream();
+                var nextChunkWaveFile = new WaveFileWriter(nextAudioChunkStream, waveFormatForWhisper);
 
+                // 2. Perform a seamless swap inside the lock so NAudio never drops a frame
+                lock (_audioStreamLock)
+                {
+                    // Capture the old streams
+                    capturedChunkFile = chunkWaveFile;
+                    capturedAudioChunkStream = currentAudioChunkStream;
+
+                    // Instantly swap to the new streams
+                    currentAudioChunkStream = nextAudioChunkStream;
+                    chunkWaveFile = nextChunkWaveFile;
+
+                    // Reset timing variables for the new chunk
+                    chunkStartTime = DateTime.UtcNow;
+                    silenceDetectedRecently = false;
+                    silenceDetectionBufferBytesRecorded = 0;
+                }
+
+                // 3. Process the captured streams safely on this thread
                 try
-                    {
+                {
                     capturedChunkFile?.Flush();
                     if (capturedAudioChunkStream != null && capturedAudioChunkStream.Length > 0)
-                        {
+                    {
                         capturedAudioChunkStream.Position = 0;
                         streamToSend = new MemoryStream();
                         await capturedAudioChunkStream.CopyToAsync(streamToSend);
                         streamToSend.Position = 0;
-                        }
                     }
+                }
                 catch (Exception ex)
                     {
                     OnDebugMessage($"Error prep stream: {ex.Message}");
@@ -394,8 +419,6 @@ namespace WhisperNetConsoleDemo
                     ProcessingFinished?.Invoke();
                     capturedChunkFile?.Dispose(); // This disposes capturedAudioChunkStream
                     }
-
-                StartNewChunk(); // Prepare for the *next* segment of audio immediately
 
                 if (streamToSend != null && streamToSend.Length > 0)
                     {

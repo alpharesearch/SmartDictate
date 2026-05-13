@@ -153,6 +153,38 @@ public static class KeyboardSimulator
         return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = ki } };
     }
 
+    // Create an INPUT for a virtual-key code (used for ctrl/c/v, etc.)
+    private static INPUT CreateVirtualKeyInput(ushort virtualKey, bool keyUp)
+    {
+        KEYBDINPUT ki = new KEYBDINPUT
+        {
+            wVk = virtualKey,
+            wScan = 0,
+            dwFlags = keyUp ? KEYEVENTF_KEYUP : 0,
+            time = 0,
+            dwExtraInfo = GetMessageExtraInfo()
+        };
+        return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = ki } };
+    }
+
+    // Send a modifier + key sequence using SendInput (modifier down, key down, key up, modifier up)
+    public static void SendModifiedKey(Keys modifier, Keys key)
+    {
+        var inputs = new List<INPUT>
+        {
+            CreateVirtualKeyInput((ushort)modifier, false), // modifier down
+            CreateVirtualKeyInput((ushort)key, false),      // key down
+            CreateVirtualKeyInput((ushort)key, true),       // key up
+            CreateVirtualKeyInput((ushort)modifier, true)   // modifier up
+        };
+
+        SendInput((uint)inputs.Count, inputs.ToArray(), INPUT.Size);
+    }
+
+    // Convenience methods for common combos
+    public static void SendCtrlC() => SendModifiedKey(Keys.ControlKey, Keys.C);
+    public static void SendCtrlV() => SendModifiedKey(Keys.ControlKey, Keys.V);
+
     // Alternative using System.Windows.Forms.SendKeys (simpler but less reliable with some apps)
     public static void SendTextAlternative(string text)
     {

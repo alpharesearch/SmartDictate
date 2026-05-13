@@ -178,7 +178,8 @@ namespace WhisperNetConsoleDemo
                 const int maxAttempts = 5;
                 for (int attempt = 0; attempt < maxAttempts; attempt++)
                 {
-                    SendKeys.SendWait("^c");
+                    // Use low-level SendInput rather than SendKeys
+                    KeyboardSimulator.SendCtrlC();
 
                     // Progressive wait: first attempt short, later attempts longer
                     int waitMs = 120 + (attempt * 120);
@@ -225,7 +226,8 @@ namespace WhisperNetConsoleDemo
                     {
                         Clipboard.SetText(refined);
                         await Task.Delay(80); // allow clipboard to propagate
-                        SendKeys.SendWait("^v"); // paste over selection
+                        // Use low-level paste
+                        KeyboardSimulator.SendCtrlV();
                         await Task.Delay(80);
                     }
                     catch (Exception ex)
