@@ -88,37 +88,59 @@ public static class KeyboardSimulator
         string textToSend = text;
         if (filterPlaceholders)
         {
-            // Option 1: Regex Replace (more general but might be too broad)
-            // textToSend = PlaceholderRegex.Replace(textToSend.Trim(), string.Empty).Trim();
-
-            // Option 2: Replace known placeholders (more precise)
-            // This might be better to avoid accidentally removing legitimate bracketed text.
-            // We can combine it with a regex for any remaining general bracketed forms if desired.
             string tempText = textToSend.Trim();
             foreach (string placeholder in KnownPlaceholdersForDictation)
             {
-                // Use Regex.Replace for case-insensitive whole-word match if placeholders can vary slightly
-                // For exact match (case-insensitive due to HashSet comparer):
-                if (tempText.Equals(placeholder, StringComparison.OrdinalIgnoreCase)) // If the whole segment is a placeholder
+                if (tempText.Equals(placeholder, StringComparison.OrdinalIgnoreCase))
                 {
                     tempText = string.Empty;
                     break;
                 }
-                // If placeholders can be part of a larger string and need replacing:
-                // tempText = Regex.Replace(tempText, Regex.Escape(placeholder), string.Empty, RegexOptions.IgnoreCase);
             }
             textToSend = tempText.Trim();
-
-
-            // Optional: Apply a more general regex for any remaining simple bracketed items
-            // if they weren't caught by KnownPlaceholders and you want to be aggressive.
-            // Be cautious with this.
-            // if (!string.IsNullOrWhiteSpace(textToSend) && textToSend.StartsWith("[") && textToSend.EndsWith("]") && textToSend.Length <= 25) {
-            //     textToSend = string.Empty;
-            // }
         }
 
         if (string.IsNullOrWhiteSpace(textToSend)) return; // Don't send if filtering resulted in empty string
+
+        // If text is long, prefer clipboard paste to avoid slow character-by-character SendInput
+        const int CLIPBOARD_PASTE_THRESHOLD = 20;
+        if (textToSend.Length > CLIPBOARD_PASTE_THRESHOLD)
+        {
+            logger?.Invoke($"Using clipboard paste for long text (len={textToSend.Length}).");
+            IDataObject? backup = null;
+            try
+            {
+                // Backup clipboard on STA thread
+                backup = GetClipboardDataObjectSafe();
+
+                // Set clipboard text on STA thread
+                SetClipboardTextSafe(textToSend);
+
+                // Small pause to allow clipboard to update
+                Thread.Sleep(60);
+
+                // Paste using low-level SendInput
+                SendCtrlV();
+
+                Thread.Sleep(60); // allow paste to complete
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Clipboard paste path failed: {ex.Message}");
+                // Fall back to character input below if needed
+            }
+            finally
+            {
+                if (backup != null)
+                {
+                    try { RestoreClipboardDataObjectSafe(backup); }
+                    catch { /* ignore */ }
+                }
+            }
+
+            return;
+        }
+
         logger?.Invoke($"Preparing to SendInput for: '{textToSend}' (Length: {textToSend.Length})");
         List<INPUT> inputs = new List<INPUT>();
         foreach (char c in textToSend)
@@ -144,11 +166,6 @@ public static class KeyboardSimulator
             time = 0,
             dwExtraInfo = GetMessageExtraInfo()
         };
-        // For characters requiring Shift (e.g., uppercase, or symbols like '!', '@', '#')
-        // a more complex solution would be needed to simulate Shift key press/release
-        // around the character. System.Windows.Forms.SendKeys handles this internally.
-        // For simplicity, this example sends Unicode characters directly.
-        // Most applications handle direct Unicode input well.
 
         return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = ki } };
     }
@@ -185,12 +202,55 @@ public static class KeyboardSimulator
     public static void SendCtrlC() => SendModifiedKey(Keys.ControlKey, Keys.C);
     public static void SendCtrlV() => SendModifiedKey(Keys.ControlKey, Keys.V);
 
+    // Low-level paste wrapper used above
+    private static void SendCtrlVWrapper()
+    {
+        SendCtrlV();
+    }
+
+    // STA-thread helpers for clipboard operations
+    private static IDataObject? GetClipboardDataObjectSafe()
+    {
+        IDataObject? result = null;
+        var t = new Thread(() =>
+        {
+            try { result = Clipboard.GetDataObject(); }
+            catch { result = null; }
+        });
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
+        return result;
+    }
+
+    private static void SetClipboardTextSafe(string text)
+    {
+        var t = new Thread(() =>
+        {
+            try { Clipboard.SetText(text); }
+            catch { }
+        });
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
+    }
+
+    private static void RestoreClipboardDataObjectSafe(IDataObject data)
+    {
+        var t = new Thread(() =>
+        {
+            try { Clipboard.SetDataObject(data, true); }
+            catch { }
+        });
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
+    }
+
     // Alternative using System.Windows.Forms.SendKeys (simpler but less reliable with some apps)
     public static void SendTextAlternative(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        // SendKeys can have issues with focus and modifier keys in some applications.
-        // It also sends keys to the *active* window, which is what we want.
         System.Windows.Forms.SendKeys.SendWait(text);
     }
 }
