@@ -161,7 +161,11 @@ namespace WhisperNetConsoleDemo
                 {
                 await DisposeWhisperResourcesAsync();
                 whisperFactoryInstance = WhisperFactory.FromPath(currentWhisperModelPath);
-                whisperProcessorInstance = whisperFactoryInstance.CreateBuilder().WithLanguage("auto").Build();
+                whisperProcessorInstance = whisperFactoryInstance.CreateBuilder()
+                    .WithLanguage("auto")
+                    .WithNoContext() // Replaces ConditionOnPreviousText=false
+                    .WithPrompt("Hello. This is a clear, professional dictation.")
+                    .Build();
                 OnDebugMessage("WhisperFactory and WhisperProcessor initialized.");
                 return true;
                 }
@@ -711,7 +715,16 @@ namespace WhisperNetConsoleDemo
                     }
                 var inferenceParams = new InferenceParams()
                     {
-                    AntiPrompts = new List<string> { "<|im_end|>", "user:", "User:", "<|user|>", System.Environment.NewLine + "<|im_start|>" }, // More robust anti-prompts
+                    AntiPrompts = new List<string>
+                    {
+                        "<|im_end|>",           // Qwen / ChatML format
+                        "<|eot_id|>",           // Llama 3 Instruct format
+                        "<|end_of_text|>",      // Llama Base format
+                        "<|fim_end|>",          // Catches the specific Llama Fill-in-Middle loop you experienced
+                        "<|im_start|>",         // Stops it from simulating the start of a new turn
+                        "\nuser:", "\nUser:",
+                        "<|user|>"              // Generic fallbacks
+                    },
                     MaxTokens = Settings.LLMMaxOutputTokens,
                     SamplingPipeline = new LLama.Sampling.DefaultSamplingPipeline() // other pipelines, including custom ones, are possible
                         {
