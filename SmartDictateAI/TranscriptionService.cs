@@ -1063,14 +1063,24 @@ namespace WhisperNetConsoleDemo
                         currentAudioChunkStream?.Dispose();
                         whisperProcessorInstance?.Dispose();
                         whisperFactoryInstance?.Dispose();
+
+                        // StatelessExecutor may not implement IDisposable in this LLama build.
+                        // Dispose it only if it actually implements IDisposable to avoid compile errors.
+                        if (llmExecutor is IDisposable disposableExecutor)
+                        {
+                            try { disposableExecutor.Dispose(); }
+                            catch { /* ignore dispose errors */ }
+                        }
+
                         llmContext?.Dispose();
                         llmModelWeights?.Dispose();
+
                         llmExecutor = null;
                         llmContext = null;
                         llmModelWeights = null;
                         }
                     catch { /* Optionally log or ignore */ }
-                    }
+                }
                 // Free unmanaged resources (if any) here
 
                 disposedValue = true;

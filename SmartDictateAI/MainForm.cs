@@ -151,28 +151,65 @@ namespace WhisperNetConsoleDemo
             if (_isProofreadingClipboard)
                 return;
 
+            _isProofreadingClipboard = true;
+            IDataObject? backupData = null;
+            string? backupText = null;
+            bool restored = false;
+
             try
             {
-                _isProofreadingClipboard = true;
-
-                var backup = Clipboard.GetText();
-
-                // 1. Copy selected text
-                SendKeys.SendWait("^c");
-
-                // Small delay to allow clipboard to update
-                await Task.Delay(100);
-
-                var clip = Clipboard.GetText();
-
-                if (string.IsNullOrWhiteSpace(clip))
+                // Backup entire clipboard (so we can restore non-text formats too)
+                try
                 {
-                    AppendToDebugOutput("Clipboard proofreading: nothing selected.");
+                    backupData = Clipboard.GetDataObject();
+                    if (clipboardContainsTextSafe())
+                        backupText = Clipboard.GetText();
+                }
+                catch (Exception ex)
+                {
+                    AppendToDebugOutput($"Warning: could not read existing clipboard: {ex.Message}");
+                    backupData = null;
+                    backupText = null;
+                }
+
+                // Try copying the current selection. Retry & wait until clipboard changes or timeout.
+                string clip = string.Empty;
+                bool copySucceeded = false;
+                const int maxAttempts = 5;
+                for (int attempt = 0; attempt < maxAttempts; attempt++)
+                {
+                    SendKeys.SendWait("^c");
+
+                    // Progressive wait: first attempt short, later attempts longer
+                    int waitMs = 120 + (attempt * 120);
+                    await Task.Delay(waitMs);
+
+                    try
+                    {
+                        clip = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendToDebugOutput($"Clipboard read error after copy attempt {attempt + 1}: {ex.Message}");
+                        clip = string.Empty;
+                    }
+
+                    // If we have non-empty text and it's different from previous text (if known), accept it
+                    if (!string.IsNullOrWhiteSpace(clip) && (backupText == null || clip != backupText))
+                    {
+                        copySucceeded = true;
+                        break;
+                    }
+                }
+
+                if (!copySucceeded)
+                {
+                    AppendToDebugOutput("Clipboard proofreading: nothing selected or copy did not change clipboard.");
                     return;
                 }
-                else AppendToDebugOutput("Clipboard proofreading selection:" + clip);
 
-                // Optional: skip if dictation active
+                AppendToDebugOutput("Clipboard proofreading selection: " + clip);
+
                 if (isInDictationModeCurrently)
                 {
                     AppendToDebugOutput("Clipboard proofreading skipped: dictation active.");
@@ -180,21 +217,21 @@ namespace WhisperNetConsoleDemo
                 }
 
                 AppendToDebugOutput("Clipboard proofreading: sending text to LLM...");
-
                 var refined = await transcriptionService.ProcessTextWithLLMAsync(clip);
 
                 if (!string.IsNullOrWhiteSpace(refined))
                 {
-                    Clipboard.SetText(refined);
-
-                    // 5. Paste result (replaces selection)
-                    await Task.Delay(50); // brief pause before paste
-                    SendKeys.SendWait("^v");
-
-                    await Task.Delay(50);
-                    Clipboard.SetText(backup);
-
-                    AppendToDebugOutput("Clipboard proofreading: replaced selection: " + backup);
+                    try
+                    {
+                        Clipboard.SetText(refined);
+                        await Task.Delay(80); // allow clipboard to propagate
+                        SendKeys.SendWait("^v"); // paste over selection
+                        await Task.Delay(80);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendToDebugOutput("Clipboard paste error: " + ex.Message);
+                    }
                 }
             }
             catch (Exception ex)
@@ -203,7 +240,36 @@ namespace WhisperNetConsoleDemo
             }
             finally
             {
+                // Restore original clipboard state if we backed it up
+                if (backupData != null)
+                {
+                    try
+                    {
+                        Clipboard.SetDataObject(backupData, true);
+                        restored = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendToDebugOutput("Warning: could not restore original clipboard: " + ex.Message);
+                    }
+                }
+
+                if (restored)
+                    AppendToDebugOutput("Clipboard proofreading: original clipboard restored.");
                 _isProofreadingClipboard = false;
+            }
+
+            // Local helper to safely check Clipboard.ContainsText without throwing on some clipboard states
+            bool clipboardContainsTextSafe()
+            {
+                try
+                {
+                    return Clipboard.ContainsText();
+                }
+                catch
+                {
+                    return false;
+                }
             }
         }
 
