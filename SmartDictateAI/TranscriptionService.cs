@@ -164,7 +164,7 @@ namespace WhisperNetConsoleDemo
                 whisperProcessorInstance = whisperFactoryInstance.CreateBuilder()
                     .WithLanguage("auto")
                     .WithNoContext() // Replaces ConditionOnPreviousText=false
-                    .WithPrompt("Hello. This is a clear, professional dictation.")
+                    .WithNoSpeechThreshold(0.6f)
                     .Build();
                 OnDebugMessage("WhisperFactory and WhisperProcessor initialized.");
                 return true;
@@ -725,12 +725,22 @@ namespace WhisperNetConsoleDemo
                 OnDebugMessage("\ninferenceParams" + inferenceParams.ToString());
 
                 await foreach (var textPart in llmExecutor.InferAsync(fullPrompt, inferenceParams))
-                    {
+                {
                     outputBuffer.Append(textPart);
-                    }
-                OnDebugMessage("LLamaSharp processing successful." + outputBuffer.ToString().Trim());
-                return outputBuffer.ToString().Trim();
                 }
+
+                // Clean up any leaked stop tokens from LLamaSharp's stream
+                string finalResult = outputBuffer.ToString().Trim();
+                var tagsToStrip = new[] { "<|im_end|>", "<|eot_id|>", "<|end_of_text|>", "<|fim_end|>", "<|im_start|>" };
+
+                foreach (var tag in tagsToStrip)
+                {
+                    finalResult = finalResult.Replace(tag, string.Empty).Trim();
+                }
+
+                OnDebugMessage("LLamaSharp processing successful. " + finalResult);
+                return finalResult;
+            }
             catch (Exception ex)
                 {
                 OnDebugMessage($"Generic error during LLamaSharp processing: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
