@@ -31,7 +31,7 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             textBoxOutput = new TextBox();
             textBoxDebug = new TextBox();
-            btnCalibration = new Button();
+            cmbVadSensitivity = new ComboBox();
             btnModelSettings = new Button();
             btnMicInput = new Button();
             btnStartStop = new Button();
@@ -66,20 +66,18 @@
             textBoxDebug.Size = new Size(767, 354);
             textBoxDebug.TabIndex = 2;
             // 
-            // btnCalibration
+            // cmbVadSensitivity
             // 
-            btnCalibration.Location = new Point(66, 7);
-            btnCalibration.Margin = new Padding(1);
-            btnCalibration.Name = "btnCalibration";
-            btnCalibration.Size = new Size(56, 24);
-            btnCalibration.TabIndex = 3;
-            btnCalibration.Text = "Calibration";
-            btnCalibration.UseVisualStyleBackColor = true;
-            btnCalibration.Click += btnCalibration_Click;
+            cmbVadSensitivity.Location = new Point(457, 7);
+            cmbVadSensitivity.Margin = new Padding(1);
+            cmbVadSensitivity.Name = "cmbVadSensitivity";
+            cmbVadSensitivity.Size = new Size(82, 23);
+            cmbVadSensitivity.TabIndex = 3;
+            cmbVadSensitivity.Text = "Calibration";
             // 
             // btnModelSettings
             // 
-            btnModelSettings.Location = new Point(125, 7);
+            btnModelSettings.Location = new Point(599, 7);
             btnModelSettings.Margin = new Padding(1);
             btnModelSettings.Name = "btnModelSettings";
             btnModelSettings.Size = new Size(56, 24);
@@ -90,7 +88,7 @@
             // 
             // btnMicInput
             // 
-            btnMicInput.Location = new Point(183, 7);
+            btnMicInput.Location = new Point(541, 7);
             btnMicInput.Margin = new Padding(1);
             btnMicInput.Name = "btnMicInput";
             btnMicInput.Size = new Size(56, 24);
@@ -104,7 +102,7 @@
             btnStartStop.Location = new Point(7, 7);
             btnStartStop.Margin = new Padding(1);
             btnStartStop.Name = "btnStartStop";
-            btnStartStop.Size = new Size(56, 24);
+            btnStartStop.Size = new Size(143, 24);
             btnStartStop.TabIndex = 6;
             btnStartStop.Text = "Start";
             btnStartStop.UseVisualStyleBackColor = true;
@@ -222,7 +220,7 @@
             Controls.Add(btnStartStop);
             Controls.Add(btnMicInput);
             Controls.Add(btnModelSettings);
-            Controls.Add(btnCalibration);
+            Controls.Add(cmbVadSensitivity);
             Controls.Add(textBoxDebug);
             Controls.Add(textBoxOutput);
             Icon = (Icon)resources.GetObject("$this.Icon");
@@ -240,7 +238,7 @@
         private Button btnStartStop;
         private TextBox textBoxOutput;
         private TextBox textBoxDebug;
-        private Button btnCalibration;
+        private ComboBox cmbVadSensitivity;
         private Button btnModelSettings;
         private Button btnMicInput;
         private Label lblCalibrationIndicator;

@@ -8,12 +8,15 @@ namespace WhisperNetConsoleDemo
     public class AppSettings
         {
 
-        public const float APPSETTINGS_DEFAULT_ENERGY_THRESHOLD = 0.025f;
         public const string APPSETTINGS_DEFAULT_MODEL_PATH = "ggml-base.bin";
 
         public int SelectedMicrophoneDevice { get; set; } = 0;
         public string ModelFilePath { get; set; } = APPSETTINGS_DEFAULT_MODEL_PATH;
-        public float CalibratedEnergySilenceThreshold { get; set; } = APPSETTINGS_DEFAULT_ENERGY_THRESHOLD;
+
+        // Replaced amplitude threshold with VAD operating mode.
+        // 0 = Low, 1 = Medium, 2 = High, 3 = Max (VeryAggressive)
+        public int VadMode { get; set; } = 3;
+
         public bool ShowRealtimeTranscription { get; set; } = true;
         public bool ShowDebugMessages { get; set; } = false;
         public bool ProcessWithLLM { get; set; } = false;

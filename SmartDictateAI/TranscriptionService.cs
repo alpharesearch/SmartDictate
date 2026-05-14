@@ -14,6 +14,7 @@ using LLama; // Core LLamaSharp
 using LLama.Common;
 using System.Xml; // For ModelParams, InferenceParams
 using System.Reflection;
+using WebRtcVadSharp; // NEW: use the library directly
 
 // using LLama.Abstractions; // If using interfaces like ILLamaExecutor
 // using WhisperNetConsoleDemo; // If AppSettings is in a separate file in this namespace
@@ -25,14 +26,9 @@ namespace WhisperNetConsoleDemo
         // --- Constants ---
         private const double NORMAL_MAX_CHUNK_DURATION_SECONDS = 6.0;
         private const double NORMAL_SILENCE_THRESHOLD_SECONDS = 1.5;
-        // DEFAULT_ENERGY_SILENCE_THRESHOLD is now calibratedEnergySilenceThreshold
-
-        // --- Constants for Dictation Mode ---
+        // Dictation mode constants remain
         private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 3.0;  // Shorter max duration
         private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.75; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
-        // DEFAULT_ENERGY_SILENCE_THRESHOLD and DEFAULT_MODEL_FILE_PATH now come from AppSettings class
-        private const int SILENCE_DETECTION_BUFFER_MILLISECONDS = 250;
-        public const int CALIBRATION_DURATION_SECONDS = 3; // public if Form1 needs it for display
 
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
@@ -52,8 +48,6 @@ namespace WhisperNetConsoleDemo
         private DateTime chunkStartTime = DateTime.MinValue;
         private DateTime lastSpeechTime = DateTime.MinValue;
         private bool silenceDetectedRecently = false;
-        private byte[] silenceDetectionBuffer = new byte[0];
-        private int silenceDetectionBufferBytesRecorded = 0;
         private bool activelyProcessingChunk = false;
         private Task? currentTranscriptionTask = null;
         private readonly List<string> currentSessionTranscribedText = new List<string>();
@@ -73,38 +67,36 @@ namespace WhisperNetConsoleDemo
         private WhisperFactory? whisperFactoryInstance = null;
         private WhisperProcessor? whisperProcessorInstance = null;
         private readonly WaveFormat waveFormatForWhisper = new WaveFormat(16000, 16, 1);
-        private float calibratedEnergySilenceThreshold;
 
         public AppSettings Settings { get; private set; } = new AppSettings();
         private readonly string appSettingsFilePath = "appsettings.json";
-
-        private enum CalibrationStep
-            {
-            None, SamplingSilence, SamplingSpeech_Prompt, SamplingSpeech_Recording
-            }
-        private CalibrationStep currentCalibrationStep = CalibrationStep.None;
-        private readonly List<float> calibrationSamples = new List<float>();
-        private bool isCalibrating = false;
 
         private TaskCompletionSource<bool>? _currentStopProcessingTcs;
 
         public bool IsDictationModeActive { get; private set; } = false;
         private TaskCompletionSource<bool>? _dictationModeStopSignal;
 
-        // --- WebRTC VAD (reflection-backed) ---
-        private object? _vadInstance = null; // reflection-created VAD instance
-        private MethodInfo? _vadHasSpeechMethod = null;
+        // --- WebRtcVadSharp integration ---
+        private WebRtcVad? _vad;
+        private List<byte> _vadAudioBuffer = new List<byte>();
         private const int VAD_FRAME_BYTES = 960; // 30ms @16kHz mono 16-bit = 480 samples * 2 bytes = 960 bytes
-        private readonly byte[] _vadHoldingBuffer = new byte[VAD_FRAME_BYTES];
-        private int _vadHoldingIndex = 0;
 
         public TranscriptionService()
             {
             LoadAppSettings();
             currentWhisperModelPath = Settings.ModelFilePath; // For Whisper
-            calibratedEnergySilenceThreshold = Settings.CalibratedEnergySilenceThreshold;
-            // Try to initialize VAD reflectively; if it fails we'll still function without it.
-            TryInitializeVadReflective();
+
+            // Initialize WebRtcVad instance with mode from settings
+            try
+                {
+                _vad = new WebRtcVad() { OperatingMode = (OperatingMode)Settings.VadMode };
+                OnDebugMessage($"VAD initialized in mode {Settings.VadMode}.");
+                }
+            catch (Exception ex)
+                {
+                OnDebugMessage($"VAD initialization failed: {ex.Message}");
+                _vad = null;
+                }
             }
 
         private void OnDebugMessage(string message) => DebugMessageGenerated?.Invoke(message);
@@ -125,7 +117,7 @@ namespace WhisperNetConsoleDemo
             if (settingsSection.Exists())
                 {
                 settingsSection.Bind(Settings);
-                OnDebugMessage($"Loaded Whisper Model: {Settings.ModelFilePath}, LLM Model: {Settings.LocalLLMModelPath}, Threshold: {Settings.CalibratedEnergySilenceThreshold}, Mic: {Settings.SelectedMicrophoneDevice}");
+                OnDebugMessage($"Loaded Whisper Model: {Settings.ModelFilePath}, LLM Model: {Settings.LocalLLMModelPath}, VAD Mode: {Settings.VadMode}, Mic: {Settings.SelectedMicrophoneDevice}");
                 }
             else
                 {
@@ -133,7 +125,6 @@ namespace WhisperNetConsoleDemo
                 SaveAppSettings();
                 }
             currentWhisperModelPath = Settings.ModelFilePath;
-            calibratedEnergySilenceThreshold = Settings.CalibratedEnergySilenceThreshold;
             OnSettingsUpdated();
             }
 
@@ -143,8 +134,6 @@ namespace WhisperNetConsoleDemo
             try
                 {
                 Settings.ModelFilePath = currentWhisperModelPath; // Whisper model
-                Settings.CalibratedEnergySilenceThreshold = calibratedEnergySilenceThreshold;
-                // LLMModelPath, SelectedMicrophoneDevice are updated in Settings object directly
 
                 var configurationToSave = new
                     {
@@ -253,10 +242,9 @@ namespace WhisperNetConsoleDemo
 
         public async Task DisposeLLMResourcesAsync()
             {
-            OnDebugMessage("Disposing LLamaSharp resources (synchronously within async method for test)...");
+            OnDebugMessage("Disposing LLamaSharp resources (synchronously within async method for test)..."); 
             if (llmModelWeights != null || llmExecutor != null)
                 {
-                // await Task.Run(() => DisposeLLMResourcesInternal()); // Comment out Task.Run
                 DisposeLLMResourcesInternal(); // Call directly
                 OnDebugMessage("LLamaSharp resources disposed state updated.");
                 }
@@ -276,8 +264,7 @@ namespace WhisperNetConsoleDemo
                 }
             catch
                 {
-                // It is safe to ignore exceptions here because disposing the previous chunkWaveFile is a cleanup step,
-                // and any errors (such as already disposed) do not affect the logic for starting a new chunk.
+                // ignore disposal exceptions
                 }
 
             currentAudioChunkStream = new MemoryStream();
@@ -286,19 +273,8 @@ namespace WhisperNetConsoleDemo
             lastSpeechTime = DateTime.UtcNow;
             silenceDetectedRecently = false;
 
-            int bytesPerSample = waveFormatForWhisper.BitsPerSample / 8;
-            int samplesPerBuffer = waveFormatForWhisper.SampleRate * SILENCE_DETECTION_BUFFER_MILLISECONDS / 1000;
-            int bufferSize = samplesPerBuffer * bytesPerSample * waveFormatForWhisper.Channels;
-            if (bufferSize == 0 && waveFormatForWhisper.AverageBytesPerSecond > 0)
-                {
-                bufferSize = waveFormatForWhisper.BlockAlign > 0 ? waveFormatForWhisper.BlockAlign : 2;
-                }
-            else if (waveFormatForWhisper.BlockAlign > 0 && bufferSize % waveFormatForWhisper.BlockAlign != 0)
-                {
-                bufferSize = ((bufferSize / waveFormatForWhisper.BlockAlign) + 1) * waveFormatForWhisper.BlockAlign;
-                }
-            silenceDetectionBuffer = new byte[bufferSize];
-            silenceDetectionBufferBytesRecorded = 0;
+            // Clear VAD buffer when starting a new chunk so frames don't cross chunk boundaries unnecessarily
+            _vadAudioBuffer.Clear();
             }
 
         private async void WaveSource_DataAvailable(object? sender, WaveInEventArgs e)
@@ -306,7 +282,7 @@ namespace WhisperNetConsoleDemo
 
             lock (_audioStreamLock)
             {
-                if (!isRecording || isCalibrating || chunkWaveFile == null || currentAudioChunkStream == null)
+                if (!isRecording || chunkWaveFile == null || currentAudioChunkStream == null)
                     return;
                 try
                 {
@@ -316,105 +292,52 @@ namespace WhisperNetConsoleDemo
             }
 
             bool speechInSeg = false;
-            int bytesProcEvent = e.BytesRecorded, offset = 0;
-            if (silenceDetectionBuffer.Length == 0)
-                return;
 
-            // Feed into our VAD holding buffer in 960-byte frames
-            while (bytesProcEvent > 0)
+            // Use WebRtcVadSharp: accumulate incoming bytes into a rolling buffer and analyze 960-byte frames (30ms @16kHz 16-bit mono)
+            try
                 {
-                int toCopy = Math.Min(bytesProcEvent, VAD_FRAME_BYTES - _vadHoldingIndex);
-                if (toCopy <= 0) break;
-                Buffer.BlockCopy(e.Buffer, offset, _vadHoldingBuffer, _vadHoldingIndex, toCopy);
-                _vadHoldingIndex += toCopy;
-                bytesProcEvent -= toCopy;
-                offset += toCopy;
-
-                if (_vadHoldingIndex == VAD_FRAME_BYTES)
+                if (_vad != null)
                     {
-                    bool vadSaysSpeech = false;
-                    try
+                    // Only append the valid bytes recorded in this event
+                    _vadAudioBuffer.AddRange(e.Buffer.Take(e.BytesRecorded));
+
+                    while (_vadAudioBuffer.Count >= VAD_FRAME_BYTES)
                         {
-                        if (_vadInstance != null && _vadHasSpeechMethod != null)
+                        var frame = _vadAudioBuffer.GetRange(0, VAD_FRAME_BYTES).ToArray();
+                        _vadAudioBuffer.RemoveRange(0, VAD_FRAME_BYTES);
+
+                        try
                             {
-                            var parameters = _vadHasSpeechMethod.GetParameters();
-                            object? result = null;
-                            if (parameters.Length == 1)
-                                result = _vadHasSpeechMethod.Invoke(_vadInstance, new object[] { _vadHoldingBuffer });
-                            else if (parameters.Length == 2)
-                                result = _vadHasSpeechMethod.Invoke(_vadInstance, new object[] { _vadHoldingBuffer, waveFormatForWhisper.SampleRate });
-
-                            if (result is bool b) vadSaysSpeech = b;
-                            else if (result is int i) vadSaysSpeech = i != 0;
-                            }
-                        }
-                    catch (Exception ex)
-                        {
-                        OnDebugMessage($"VAD invocation error: {ex.Message}");
-                        }
-
-                    if (vadSaysSpeech)
-                        {
-                        lastSpeechTime = DateTime.UtcNow;
-                        silenceDetectedRecently = false;
-                        speechInSeg = true; // mark speech observed in this event
-                        }
-
-                    // Reset holding index for next frame
-                    _vadHoldingIndex = 0;
-                    }
-                }
-
-            // Fallback: keep previous energy-based check if VAD not enabled or didn't detect speech in this batch
-            if (!speechInSeg)
-                {
-                int samplesToInspect = silenceDetectionBuffer.Length; // older energy buffer logic
-                int bytesToUse = Math.Min(e.BytesRecorded, silenceDetectionBuffer.Length);
-                // existing processing copied below - continue using existing mechanism
-                // (we already filled silenceDetectionBuffer in older code path; to keep compatibility we reuse it)
-                int bytesProc = e.BytesRecorded; // continue with earlier energy-based filling
-                // Reuse existing loop from earlier version to update silenceDetectedRecently based on energy
-                bytesProcEvent = e.BytesRecorded; offset = 0;
-                while (bytesProcEvent > 0)
-                    {
-                    int toCopy = Math.Min(bytesProcEvent, silenceDetectionBuffer.Length - silenceDetectionBufferBytesRecorded);
-                    if (toCopy <= 0)
-                        break;
-                    Buffer.BlockCopy(e.Buffer, offset, silenceDetectionBuffer, silenceDetectionBufferBytesRecorded, toCopy);
-                    silenceDetectionBufferBytesRecorded += toCopy;
-                    bytesProcEvent -= toCopy;
-                    offset += toCopy;
-                    if (silenceDetectionBufferBytesRecorded == silenceDetectionBuffer.Length)
-                        {
-                        float maxSample = 0f;
-                        for (int i = 0; i < silenceDetectionBuffer.Length; i += waveFormatForWhisper.BlockAlign)
-                            {
-                            if (waveFormatForWhisper.BitsPerSample == 16 && waveFormatForWhisper.Channels == 1 && i + 1 < silenceDetectionBuffer.Length)
+                            // Use the correct overload: HasSpeech(byte[] audioFrame)
+                            if (_vad.HasSpeech(frame))
                                 {
-                                short s = BitConverter.ToInt16(silenceDetectionBuffer, i);
-                                float sf = s / 32768.0f;
-                                if (Math.Abs(sf) > maxSample)
-                                    maxSample = Math.Abs(sf);
+                                lastSpeechTime = DateTime.UtcNow;
+                                silenceDetectedRecently = false;
+                                speechInSeg = true;
+                                // We don't break here, continue to consume frames so buffer is kept in sync
                                 }
                             }
-                        if (maxSample > calibratedEnergySilenceThreshold)
-                            speechInSeg = true;
-                        silenceDetectionBufferBytesRecorded = 0;
+                        catch (Exception ex)
+                            {
+                            OnDebugMessage($"VAD processing error: {ex.Message}");
+                            }
                         }
                     }
+                }
+            catch (Exception ex)
+                {
+                OnDebugMessage($"VAD buffer error: {ex.Message}");
+                }
 
-                if (speechInSeg)
+            // If no VAD-detected speech in this batch, check silence based on time since last speech
+            if (!speechInSeg)
+                {
+                double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
+                                                   DICTATION_SILENCE_THRESHOLD_SECONDS :
+                                                   NORMAL_SILENCE_THRESHOLD_SECONDS;
+                if (currentAudioChunkStream != null && currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
                     {
-                    lastSpeechTime = DateTime.UtcNow;
-                    silenceDetectedRecently = false;
-                    }
-                else
-                    {
-                    double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
-                                                       DICTATION_SILENCE_THRESHOLD_SECONDS :
-                                                       NORMAL_SILENCE_THRESHOLD_SECONDS;
-                    if (currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
-                        silenceDetectedRecently = true;
+                    silenceDetectedRecently = true;
                     }
                 }
 
@@ -464,7 +387,6 @@ namespace WhisperNetConsoleDemo
                     // Reset timing variables for the new chunk
                     chunkStartTime = DateTime.UtcNow;
                     silenceDetectedRecently = false;
-                    silenceDetectionBufferBytesRecorded = 0;
                 }
 
                 // 3. Process the captured streams safely on this thread
@@ -517,11 +439,6 @@ namespace WhisperNetConsoleDemo
                     }
                 }
             }
-
-        // TranscriptionService.cs
-
-        // ... (Fields including: _currentStopProcessingTcs, currentAudioChunkStream, chunkWaveFile,
-        //      currentSessionTranscribedText, whisperProcessorInstance, Settings, etc. are INSTANCE fields) ...
 
         private async void WaveSource_RecordingStopped(object? sender, StoppedEventArgs e)
             {
@@ -821,101 +738,23 @@ namespace WhisperNetConsoleDemo
                 }
             }
 
-        private void TryInitializeVadReflective()
+        // NEW: Update VAD mode at runtime
+        public void SetVadMode(int mode)
             {
             try
                 {
-                // Attempt several likely type names until one matches the package
-                var asm = AppDomain.CurrentDomain.GetAssemblies()
-                    .FirstOrDefault(a => a.GetName().Name != null && a.GetName().Name.IndexOf("WebRtcVad", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                Type? vadType = null;
-                Assembly? targetAsm = null;
-                if (asm != null)
-                    {
-                    targetAsm = asm;
-                    vadType = asm.GetType("WebRtcVadSharp.WebRtcVad") ?? asm.GetType("WebRtcVadSharp.Vad") ?? asm.GetType("WebRtcVadSharp.WebRtcVadSharp.WebRtcVad");
-                    }
-                else
-                    {
-                    // Try to load assembly by name
-                    try { targetAsm = Assembly.Load("WebRtcVadSharp"); } catch { targetAsm = null; }
-                    if (targetAsm != null)
-                        vadType = targetAsm.GetType("WebRtcVadSharp.WebRtcVad") ?? targetAsm.GetType("WebRtcVadSharp.Vad");
-                    }
-
-                if (vadType == null || targetAsm == null)
-                    {
-                    OnDebugMessage("VAD: WebRtcVadSharp assembly/type not found; VAD disabled.");
-                    return;
-                    }
-
-                // Try to find a mode enum type and the VeryAggressive value
-                Type? modeType = targetAsm.GetType("WebRtcVadSharp.VadMode") ?? targetAsm.GetType("WebRtcVadSharp.Mode") ?? targetAsm.GetType("WebRtcVadSharp.WebRtcVadSharp.VadMode");
-                object? modeValue = null;
-                if (modeType != null && modeType.IsEnum)
-                    {
-                    // Prefer "VeryAggressive" or "Aggressive" fallback
-                    if (Enum.TryParse(modeType, "VeryAggressive", out var mv)) modeValue = mv;
-                    else if (Enum.TryParse(modeType, "Aggressive", out mv)) modeValue = mv;
-                    else
-                        {
-                        // Use first enum value as fallback
-                        var values = Enum.GetValues(modeType);
-                        modeValue = values.Length > 0 ? values.GetValue(0) : null;
-                        }
-                    }
-
-                // Try to construct VAD instance with constructor taking enum or int
-                ConstructorInfo? ctor = null;
-                object? instance = null;
-
-                if (modeValue != null)
-                    ctor = vadType.GetConstructor(new Type[] { modeType });
-                if (ctor != null)
-                    instance = ctor.Invoke(new object[] { modeValue! });
-                else
-                    {
-                    // Try constructor taking int
-                    ctor = vadType.GetConstructor(new Type[] { typeof(int) });
-                    if (ctor != null)
-                        {
-                        int intMode = modeValue != null ? Convert.ToInt32(modeValue) : 3; // 3 is commonly VeryAggressive
-                        instance = ctor.Invoke(new object[] { intMode });
-                        }
-                    else
-                        {
-                        // Try parameterless
-                        ctor = vadType.GetConstructor(Type.EmptyTypes);
-                        if (ctor != null) instance = ctor.Invoke(null);
-                        }
-                    }
-
-                if (instance == null)
-                    {
-                    OnDebugMessage("VAD: could not create instance via reflection; VAD disabled.");
-                    return;
-                    }
-
-                // Find HasSpeech method (common signatures: bool HasSpeech(byte[] pcm16) or bool HasSpeech(byte[] pcm16, int sampleRate))
-                var hasSpeech = vadType.GetMethod("HasSpeech", new Type[] { typeof(byte[]) })
-                                ?? vadType.GetMethod("HasSpeech", new Type[] { typeof(byte[]), typeof(int) })
-                                ?? vadType.GetMethod("IsSpeech", new Type[] { typeof(byte[]) })
-                                ?? vadType.GetMethod("IsSpeech", new Type[] { typeof(byte[]), typeof(int) });
-
-                if (hasSpeech == null)
-                    {
-                    OnDebugMessage("VAD: Could not find HasSpeech/IsSpeech method; VAD disabled.");
-                    return;
-                    }
-
-                _vadInstance = instance;
-                _vadHasSpeechMethod = hasSpeech;
-                OnDebugMessage("VAD: initialized reflectively and enabled.");
+                if (mode < 0) mode = 0;
+                if (mode > 3) mode = 3;
+                Settings.VadMode = mode;
+                if (_vad != null)
+                    _vad.OperatingMode = (OperatingMode)mode;
+                SaveAppSettings();
+                OnSettingsUpdated();
+                OnDebugMessage($"VAD mode updated to {mode}.");
                 }
             catch (Exception ex)
                 {
-                OnDebugMessage("VAD init error: " + ex.Message);
+                OnDebugMessage($"SetVadMode error: {ex.Message}");
                 }
             }
 
@@ -990,173 +829,6 @@ namespace WhisperNetConsoleDemo
                     }
                 catch { /* ignore */ }
                 }
-            }
-
-        public async Task CalibrateThresholdsAsync(int deviceNumber, Action<string> statusUpdateCallback)
-            {
-            statusUpdateCallback("--- Starting Silence Threshold Calibration ---");
-            OnDebugMessage("--- Starting Silence Threshold Calibration ---");
-            WaveInEvent? calWaveIn = null;
-            if (isRecording)
-                {
-                statusUpdateCallback("Cannot calibrate while main recording active.");
-                OnDebugMessage("Cannot calibrate while main recording active.");
-                return;
-                }
-            isCalibrating = true;
-            float typicalSilenceLevel = 0.001f;
-            float typicalSpeechLevel = 0.1f;
-            try
-                {
-                currentCalibrationStep = CalibrationStep.SamplingSilence;
-                calibrationSamples.Clear();
-                statusUpdateCallback($"Please remain completely silent for {CALIBRATION_DURATION_SECONDS}s...");
-                for (int i = CALIBRATION_DURATION_SECONDS; i > 0; i--)
-                    {
-                    statusUpdateCallback($"Sampling silence in {i}... ");
-                    if (i == 1)
-                        await Task.Delay(700);
-                    else
-                        await Task.Delay(1000);
-                    }
-                statusUpdateCallback("NOW SAMPLING SILENCE...");
-                calWaveIn = new WaveInEvent { DeviceNumber = deviceNumber, WaveFormat = waveFormatForWhisper };
-                calWaveIn.DataAvailable += CollectCalibrationSamples_Handler;
-                calWaveIn.StartRecording();
-                await Task.Delay(CALIBRATION_DURATION_SECONDS * 1000);
-                calWaveIn.StopRecording();
-                calWaveIn.DataAvailable -= CollectCalibrationSamples_Handler;
-                calWaveIn.Dispose();
-                calWaveIn = null;
-                statusUpdateCallback("Silence sampling complete.");
-                OnDebugMessage("Silence sampling complete.");
-                if (calibrationSamples.Count > 0)
-                    {
-                    var o = calibrationSamples.OrderBy(x => x).ToList();
-                    typicalSilenceLevel = o.ElementAtOrDefault((int)(o.Count * 0.95));
-                    OnDebugMessage($" (Detected silence level in if: {typicalSilenceLevel:F4})");
-                    if (typicalSilenceLevel < 0.00001f && typicalSilenceLevel >= 0)
-                        typicalSilenceLevel = 0.0001f;
-                    else if (typicalSilenceLevel < 0)
-                        typicalSilenceLevel = 0.0001f;
-                    }
-                else
-                    {
-                    statusUpdateCallback("No silence samples. Low default used.");
-                    OnDebugMessage("No silence samples. Low default used.");
-                    }
-                OnDebugMessage($"Calibrate: Typical silence (95th): {typicalSilenceLevel:F4}");
-                statusUpdateCallback($" (Detected silence level: {typicalSilenceLevel:F4})");
-
-                currentCalibrationStep = CalibrationStep.SamplingSpeech_Prompt;
-                calibrationSamples.Clear();
-                OnDebugMessage("--- Starting Speech sample ---");
-                statusUpdateCallback($"\nSpeak normally for {CALIBRATION_DURATION_SECONDS}s...");
-                for (int i = CALIBRATION_DURATION_SECONDS; i > 0; i--)
-                    {
-                    statusUpdateCallback($"Sampling speech in {i}... ");
-                    if (i == 1)
-                        await Task.Delay(700);
-                    else
-                        await Task.Delay(1000);
-                    }
-                statusUpdateCallback("NOW SPEAKING...");
-                currentCalibrationStep = CalibrationStep.SamplingSpeech_Recording;
-                calWaveIn = new WaveInEvent { DeviceNumber = deviceNumber, WaveFormat = waveFormatForWhisper };
-                calWaveIn.DataAvailable += CollectCalibrationSamples_Handler;
-                calWaveIn.StartRecording();
-                await Task.Delay(CALIBRATION_DURATION_SECONDS * 1000);
-                calWaveIn.StopRecording();
-                calWaveIn.DataAvailable -= CollectCalibrationSamples_Handler;
-                OnDebugMessage("Speech sampling compleat");
-                if (calibrationSamples.Count > 0)
-                    {
-                    var o = calibrationSamples.OrderBy(x => x).ToList();
-                    typicalSpeechLevel = o.ElementAtOrDefault((int)(o.Count * 0.10));
-                    OnDebugMessage($" (Detected speech level in if: {typicalSpeechLevel:F4})");
-                    if (typicalSpeechLevel < 0.001f && typicalSpeechLevel >= 0)
-                        typicalSpeechLevel = 0.05f;
-                    else if (typicalSpeechLevel < 0)
-                        typicalSpeechLevel = 0.05f;
-                    }
-                else
-                    {
-                    statusUpdateCallback("No speech samples. Default used.");
-                    OnDebugMessage("No speech samples. Default used.");
-                    }
-                OnDebugMessage($"Calibrate: Typical speech (10th): {typicalSpeechLevel:F4}");
-                statusUpdateCallback($" (Detected speech level: {typicalSpeechLevel:F4})");
-
-                if (typicalSpeechLevel <= typicalSilenceLevel + 0.005f)
-                    {
-                    statusUpdateCallback("Warning: Speech not significantly louder.");
-                    OnDebugMessage("Warning: Speech not significantly louder.");
-                    calibratedEnergySilenceThreshold = typicalSilenceLevel * 2.0f;
-                    if (calibratedEnergySilenceThreshold < (AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD / 2) && AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD > 0)
-                        calibratedEnergySilenceThreshold = AppSettings.APPSETTINGS_DEFAULT_ENERGY_THRESHOLD / 2;
-                    else if (calibratedEnergySilenceThreshold < 0.002f)
-                        calibratedEnergySilenceThreshold = 0.002f;
-                    }
-                else
-                    {
-                    float diff = typicalSpeechLevel - typicalSilenceLevel;
-                    calibratedEnergySilenceThreshold = typicalSilenceLevel + (diff * 0.25f);
-                    }
-                calibratedEnergySilenceThreshold = Math.Max(0.002f, Math.Min(0.35f, calibratedEnergySilenceThreshold));
-                Settings.CalibratedEnergySilenceThreshold = calibratedEnergySilenceThreshold;
-                SaveAppSettings();
-                statusUpdateCallback($"--- Calibration Complete ---\nNew Threshold: {calibratedEnergySilenceThreshold:F4} (Saved)");
-                OnDebugMessage($"--- Calibration Complete ---\nNew Threshold: {calibratedEnergySilenceThreshold:F4} (Saved)");
-                }
-            catch (Exception ex)
-                {
-                statusUpdateCallback($"Calibration Error: {ex.Message}");
-                OnDebugMessage($"Calibration Error: {ex}");
-                }
-            finally
-                {
-                isCalibrating = false;
-                currentCalibrationStep = CalibrationStep.None;
-                calWaveIn?.Dispose();
-                OnDebugMessage("Calibration process finished.");
-                OnSettingsUpdated();
-                }
-            }
-
-        private void CollectCalibrationSamples_Handler(object? sender, WaveInEventArgs e)
-            {
-            // Only process if calibrating and in the correct step
-            if (!isCalibrating ||
-                (currentCalibrationStep != CalibrationStep.SamplingSilence &&
-                 currentCalibrationStep != CalibrationStep.SamplingSpeech_Recording))
-                return;
-
-            // Use the event buffer directly; no need to allocate a new buffer
-            int bytesPerSample = waveFormatForWhisper.BitsPerSample / 8;
-            int blockAlign = waveFormatForWhisper.BlockAlign;
-            int channels = waveFormatForWhisper.Channels;
-
-            // Only support 16-bit mono for calibration
-            if (waveFormatForWhisper.BitsPerSample != 16 || channels != 1)
-                return;
-
-            int sampleCount = e.BytesRecorded / blockAlign;
-            float maxSample = 0f;
-
-            for (int i = 0; i < sampleCount; i++)
-                {
-                int byteIndex = i * blockAlign;
-                if (byteIndex + 1 >= e.Buffer.Length)
-                    break; // Prevent overrun
-
-                short sample = BitConverter.ToInt16(e.Buffer, byteIndex);
-                float normalized = sample / 32768.0f;
-                float abs = Math.Abs(normalized);
-                if (abs > maxSample)
-                    maxSample = abs;
-                }
-
-            calibrationSamples.Add(maxSample);
             }
 
         public static List<(int Index, string Name)> GetAvailableMicrophones()
@@ -1276,6 +948,9 @@ namespace WhisperNetConsoleDemo
 
                         llmContext?.Dispose();
                         llmModelWeights?.Dispose();
+
+                        // Dispose VAD
+                        try { _vad?.Dispose(); } catch { }
 
                         llmExecutor = null;
                         llmContext = null;

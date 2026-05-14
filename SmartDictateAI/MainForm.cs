@@ -49,6 +49,9 @@ namespace WhisperNetConsoleDemo
             chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
             chkLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
 
+            // Wire up VAD sensitivity combobox (assume it exists in designer as cmbVadSensitivity)
+            cmbVadSensitivity.SelectedIndexChanged += cmbVadSensitivity_SelectedIndexChanged;
+
             globalHotkeyService = new GlobalHotkeyService(this.Handle);
             globalHotkeyService.HotKeyPressed += OnGlobalHotKeyPressed;
 
@@ -357,6 +360,20 @@ namespace WhisperNetConsoleDemo
             UpdateButtonStates();
             UpdateStatusIndicator(AppStatus.Idle);
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
+
+            // Populate VAD sensitivity combobox
+            try
+            {
+                cmbVadSensitivity.Items.Clear();
+                cmbVadSensitivity.Items.AddRange(new string[] { "Low (0)", "Medium (1)", "High (2)", "Max (3)" });
+                int idx = transcriptionService.Settings.VadMode;
+                if (idx < 0 || idx > 3) idx = 3;
+                cmbVadSensitivity.SelectedIndex = idx;
+            }
+            catch (Exception ex)
+            {
+                AppendToDebugOutput("Error populating VAD combo: " + ex.Message);
+            }
         }
 
         private async void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -477,7 +494,8 @@ namespace WhisperNetConsoleDemo
                 return;
             }
             btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
-            btnCalibration.Enabled = !isFormRecordingState; // Calibrate
+            // Replace calibration button enable/disable with VAD sensitivity combobox
+            cmbVadSensitivity.Enabled = !isFormRecordingState;
             btnModelSettings.Enabled = !isFormRecordingState; // Model
             btnMicInput.Enabled = !isFormRecordingState; // Mic
 
@@ -508,6 +526,16 @@ namespace WhisperNetConsoleDemo
                 this.Size = new Size(800, 840);
             else
                 this.Size = new Size(800, 480);
+
+            // Keep combobox in sync if present
+            try
+            {
+                int idx = transcriptionService.Settings.VadMode;
+                if (idx < 0 || idx > 3) idx = 3;
+                if (cmbVadSensitivity.SelectedIndex != idx)
+                    cmbVadSensitivity.SelectedIndex = idx;
+            }
+            catch { }
         }
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
@@ -517,13 +545,15 @@ namespace WhisperNetConsoleDemo
             {
                 MessageBox.Show("No microphones found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 btnStartStop.Enabled = false; // Disable record button
-                btnCalibration.Enabled = false; // Disable calibrate
+                // Replace calibration button references with VAD combobox
+                cmbVadSensitivity.Enabled = false;
                 btnMicInput.Enabled = false; // Disable mic select
             }
             else
             {
                 btnStartStop.Enabled = true;
-                btnCalibration.Enabled = true;
+                // Enable VAD combobox
+                cmbVadSensitivity.Enabled = true;
                 btnMicInput.Enabled = true;
                 AppendToDebugOutput($"Populated mics. Current in settings: {transcriptionService.Settings.SelectedMicrophoneDevice}");
             }
@@ -563,71 +593,9 @@ namespace WhisperNetConsoleDemo
             }
         }
 
-        // Form1.cs
+        // Removed btnCalibration_Click and lblCalibrationIndicator related logic per request.
+        // (Calibration UI and logic replaced by WebRtcVadSharp and VAD sensitivity combo.)
 
-        // (Make sure you have a Label named lblCalibrationStatus on your form)
-
-        private async void btnCalibration_Click(object sender, EventArgs e) // btnCalibrate_Click
-        {
-            if (isFormRecordingState) // Use UI's recording state flag
-            {
-                MessageBox.Show("Please stop the main recording before starting calibration.", "Recording Active", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            if (availableMicrophones.Count == 0 || transcriptionService.Settings.SelectedMicrophoneDevice < 0)
-            {
-                MessageBox.Show("No valid microphone selected for calibration. Please select one using the 'Mic' button.", "Microphone Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            btnStartStop.Enabled = false; // Disable Record/Stop
-            btnCalibration.Enabled = false; // Disable Calibrate
-            btnModelSettings.Enabled = false; // Disable Model
-            btnMicInput.Enabled = false; // Disable Mic
-            lblCalibrationIndicator.Text = "Calibration starting..."; // Update status label
-            lblCalibrationIndicator.Visible = true;
-
-            // Define the callback that updates the UI label
-            Action<string> uiUpdateAction = (message) =>
-            {
-                if (lblCalibrationIndicator.InvokeRequired)
-                {
-                    lblCalibrationIndicator.Invoke(() =>
-                    {
-                        lblCalibrationIndicator.Text = message;
-                    });
-                }
-                else
-                {
-                    lblCalibrationIndicator.Text = message;
-                }
-                AppendToDebugOutput($"CALIBRATION_UI: {message}"); // Also send to debug log
-            };
-
-            try
-            {
-                await transcriptionService.CalibrateThresholdsAsync(transcriptionService.Settings.SelectedMicrophoneDevice, uiUpdateAction);
-                // Final message after completion
-                string finalThresholdMessage = $"Calibration complete. New threshold: {transcriptionService.Settings.CalibratedEnergySilenceThreshold:F4}";
-                lblCalibrationIndicator.Text = finalThresholdMessage;
-                MessageBox.Show(finalThresholdMessage, "Calibration Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                string errorMsg = $"Calibration failed: {ex.Message}";
-                lblCalibrationIndicator.Text = errorMsg;
-                MessageBox.Show(errorMsg, "Calibration Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                lblCalibrationIndicator.Visible = false; // Optionally hide after a delay or keep visible
-                btnStartStop.Enabled = true; // Re-enable Record/Stop
-                btnCalibration.Enabled = true; // Re-enable Calibrate
-                btnModelSettings.Enabled = true; // Re-enable Model
-                btnMicInput.Enabled = true; // Re-enable Mic
-                UpdateUIFromServiceSettings(); // Refresh main UI elements with potentially new threshold
-            }
-        }
         // Form1.cs
 
         private async void btnModelSettings_Click(object sender, EventArgs e) // btnChangeModel_Click (now for both)
@@ -833,6 +801,14 @@ namespace WhisperNetConsoleDemo
             textBoxOutput.Text += Environment.NewLine;
             textBoxOutput.Text += LLM;
             transcriptionService.LastLLMProcessedText = LLM;
+        }
+
+        private void cmbVadSensitivity_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            int idx = cmbVadSensitivity.SelectedIndex;
+            if (idx < 0 || idx > 3) idx = 3;
+            transcriptionService.SetVadMode(idx);
+            AppendToDebugOutput($"VAD sensitivity set to {idx}.");
         }
     }
 }
