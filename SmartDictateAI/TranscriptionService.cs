@@ -348,11 +348,12 @@ namespace WhisperNetConsoleDemo
                         }
 
                         // Inside WaveSource_DataAvailable, in the VAD while loop:
-                        short maxSample = 0;
+                        int maxSample = 0;
                         for (int i = 0; i < VAD_FRAME_BYTES; i += 2)
                         {
                             short s = BitConverter.ToInt16(rawFrame, i);
-                            if (Math.Abs(s) > maxSample) maxSample = (short)Math.Abs(s);
+                            int absSample = Math.Abs((int)s);
+                            if (absSample > maxSample) maxSample = absSample;
                         }
                         // Log the peak once every second or so to avoid spam
                         //if (DateTime.UtcNow.Millisecond < 50)
@@ -381,11 +382,12 @@ namespace WhisperNetConsoleDemo
             }
             catch (Exception ex) { OnDebugMessage($"VAD buffer error: {ex.Message}"); }
 
+            double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
+                                               Settings.DictationSilenceThresholdSeconds :
+                                               Settings.NormalSilenceThresholdSeconds;
+
             if (!speechInSeg && _hasSpeechInCurrentChunk)
             {
-                double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
-                                                   Settings.DictationSilenceThresholdSeconds :
-                                                   Settings.NormalSilenceThresholdSeconds;
                 if (currentAudioChunkStream != null && currentAudioChunkStream.Length > 0 &&
                    (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
                 {
@@ -419,6 +421,12 @@ namespace WhisperNetConsoleDemo
                 {
                     OnDebugMessage("Silence detected after speech, processing chunk.");
                     process = true;
+                }
+                else if (!_hasSpeechInCurrentChunk && chunkDur >= TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
+                {
+                    // Discard the chunk early if it's just silence, to avoid building up a long silent prefix
+                    // which would cause speech to be cut off if it starts near the max chunk duration limit.
+                    discardChunk = true;
                 }
             }
 
