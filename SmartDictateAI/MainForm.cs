@@ -500,6 +500,7 @@ namespace WhisperNetConsoleDemo
                 this.Invoke(new Action(UpdateButtonStates));
                 return;
             }
+            btnStartStop.Enabled = true;
             btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
             // Replace calibration button enable/disable with VAD sensitivity combobox
             cmbVadSensitivity.Enabled = !isFormRecordingState;
@@ -569,11 +570,13 @@ namespace WhisperNetConsoleDemo
         // --- Button Click Handlers ---
         private async void btnStart_Stop_Click(object sender, EventArgs e) // Record/Stop
         {
+            btnStartStop.Enabled = false; // Prevent double clicks
             if (!isFormRecordingState)
             {
                 if (availableMicrophones.Count == 0)
                 {
                     MessageBox.Show("No microphone to record from.", "Error");
+                    btnStartStop.Enabled = true;
                     return;
                 }
 
@@ -585,6 +588,7 @@ namespace WhisperNetConsoleDemo
                 {
                     UpdateStatusIndicator(AppStatus.Error, "Failed to start");
                     MessageBox.Show("Failed to start recording. Check debug log.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    btnStartStop.Enabled = true;
                 }
                 // RecordingStateChanged event will update isFormRecordingState and button text
             }

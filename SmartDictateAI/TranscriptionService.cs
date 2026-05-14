@@ -808,7 +808,7 @@ namespace WhisperNetConsoleDemo
                 if (Settings.LLMSeed == 0)
                     {
                     // Generate a random seed if setting is 0
-                    actualSeedToUse = (uint)new Random().Next(); // Or a more robust RNG if needed
+                    actualSeedToUse = (uint)Random.Shared.Next(); // Fixes duplicate seed generation
                     OnDebugMessage($"LLMSeed was 0, generated random seed for this inference: {actualSeedToUse}");
                     }
                 else
