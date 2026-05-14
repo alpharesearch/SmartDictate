@@ -29,7 +29,7 @@ namespace WhisperNetConsoleDemo
         // Dictation mode constants remain
         private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 3.0;  // Shorter max duration
         private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.75; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
-        private const float VAD_GAIN_MULTIPLIER = 1.5f;
+        private const float VAD_GAIN_MULTIPLIER = 1.0f;
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
         public event Action<string>? FullTranscriptionReady;
