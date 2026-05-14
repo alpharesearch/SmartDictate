@@ -38,9 +38,9 @@ You must download and provide your own Whisper and LLM models:
 
 - **LLM GGUF models:**  
   The app automatically supports and formats prompts for **Qwen**, **Llama**, and **Gemma** models. Examples:
-  - **Qwen 2 (0.5B):** Download qwen2-0_5b-instruct-q8_0.gguf from bartowski/Qwen2-0.5B-Instruct-GGUF
-  - **Llama 3.2 (3B):** Download Llama-3.2-3B-Instruct-Q8_0.gguf from hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF
-  - **Gemma 4 (E2B):** Download gemma-4-E2B-it-Q4_0.gguf from unsloth/gemma-4-E2B-it-GGUF
+  - **Qwen 2 (0.5B):** Download [qwen2-0_5b-instruct-q8_0.gguf](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF/resolve/main/Qwen2-0.5B-Instruct-Q8_0.gguf?download=true) from [bartowski/Qwen2-0.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF)
+  - **Llama 3.2 (3B):** Download [Llama-3.2-3B-Instruct-Q8_0.gguf](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf?download=true) from [hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF)
+  - **Gemma 4 (E2B):** Download [gemma-4-E2B-it-Q4_0.gguf](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf?download=true) from [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)
 
 ## Example appsettings.json
 
