@@ -27,7 +27,7 @@
         /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent()
-        {
+            {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             textBoxOutput = new TextBox();
             textBoxDebug = new TextBox();
@@ -44,16 +44,17 @@
             lblDictateInstruction = new Label();
             btnLLMcb = new Button();
             label1 = new Label();
+            label_vram = new Label();
             SuspendLayout();
             // 
             // textBoxOutput
             // 
-            textBoxOutput.Location = new Point(7, 51);
+            textBoxOutput.Location = new Point(7, 34);
             textBoxOutput.Margin = new Padding(1);
             textBoxOutput.Multiline = true;
             textBoxOutput.Name = "textBoxOutput";
             textBoxOutput.ScrollBars = ScrollBars.Vertical;
-            textBoxOutput.Size = new Size(767, 354);
+            textBoxOutput.Size = new Size(767, 371);
             textBoxOutput.TabIndex = 1;
             // 
             // textBoxDebug
@@ -99,10 +100,10 @@
             // 
             // btnStartStop
             // 
-            btnStartStop.Location = new Point(7, 7);
+            btnStartStop.Location = new Point(10, 5);
             btnStartStop.Margin = new Padding(1);
             btnStartStop.Name = "btnStartStop";
-            btnStartStop.Size = new Size(143, 24);
+            btnStartStop.Size = new Size(143, 27);
             btnStartStop.TabIndex = 6;
             btnStartStop.Text = "Start";
             btnStartStop.UseVisualStyleBackColor = true;
@@ -120,7 +121,7 @@
             // lblStatusIndicator
             // 
             lblStatusIndicator.AutoSize = true;
-            lblStatusIndicator.Location = new Point(7, 33);
+            lblStatusIndicator.Location = new Point(162, 9);
             lblStatusIndicator.Margin = new Padding(1, 0, 1, 0);
             lblStatusIndicator.Name = "lblStatusIndicator";
             lblStatusIndicator.Size = new Size(26, 15);
@@ -203,11 +204,22 @@
             label1.TabIndex = 15;
             label1.Text = "CTRL + ALT + P to proofreads clipboard locally";
             // 
+            // label_vram
+            // 
+            label_vram.AutoSize = true;
+            label_vram.Location = new Point(272, 12);
+            label_vram.Margin = new Padding(1, 0, 1, 0);
+            label_vram.Name = "label_vram";
+            label_vram.Size = new Size(40, 15);
+            label_vram.TabIndex = 16;
+            label_vram.Text = "VRAM";
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 441);
+            Controls.Add(label_vram);
             Controls.Add(label1);
             Controls.Add(btnLLMcb);
             Controls.Add(lblDictateInstruction);
@@ -231,7 +243,7 @@
             Load += Form1_Load;
             ResumeLayout(false);
             PerformLayout();
-        }
+            }
 
         #endregion
 
@@ -250,5 +262,6 @@
         private Label lblDictateInstruction;
         private Button btnLLMcb;
         private Label label1;
-    }
+        private Label label_vram;
+        }
     }

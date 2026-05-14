@@ -1,8 +1,9 @@
-﻿// Form1.cs
+﻿﻿// Form1.cs
 using CommunityToolkit.HighPerformance;
 using System;
 using System.IO; // For Path
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 using System.Windows.Forms;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 // using WhisperNetConsoleDemo; // If AppSettings and TranscriptionService are in this namespace
@@ -32,6 +33,9 @@ namespace WhisperNetConsoleDemo
         private Color errorColor = Color.LightCoral;
         private Color calibratingColor = Color.LightYellow;
 
+        private System.Windows.Forms.Timer? _vramTimer;
+        private List<PerformanceCounter> _vramCounters = new List<PerformanceCounter>();
+
         public MainForm()
         {
             InitializeComponent();
@@ -58,6 +62,54 @@ namespace WhisperNetConsoleDemo
             InitializeHotkeyService();
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;
+
+            InitializeVramMonitor();
+        }
+
+        private void InitializeVramMonitor()
+        {
+            try
+            {
+                var category = new PerformanceCounterCategory("GPU Adapter Memory");
+                var instances = category.GetInstanceNames();
+                foreach (var instance in instances)
+                {
+                    _vramCounters.Add(new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", instance));
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToDebugOutput($"Failed to initialize VRAM performance counter: {ex.Message}. Ensure 'System.Diagnostics.PerformanceCounter' NuGet package is installed.");
+            }
+
+            _vramTimer = new System.Windows.Forms.Timer();
+            _vramTimer.Interval = 1000; // Update every 1 second
+            _vramTimer.Tick += (s, e) => UpdateVramUsage();
+            _vramTimer.Start();
+        }
+
+        private void UpdateVramUsage()
+        {
+            if (_vramCounters.Count > 0)
+            {
+                try
+                {
+                    float totalVramBytes = 0;
+                    foreach (var counter in _vramCounters)
+                    {
+                        totalVramBytes += counter.NextValue();
+                    }
+                    label_vram.Text = $"VRAM: {totalVramBytes / (1024 * 1024 * 1024):F2} GB";
+                }
+                catch
+                {
+                    label_vram.Text = "VRAM: Error";
+                }
+            }
+            else
+            {
+                label_vram.Text = "VRAM: N/A";
+            }
         }
 
         protected override void WndProc(ref Message m)
@@ -405,6 +457,16 @@ namespace WhisperNetConsoleDemo
             {
                 globalHotkeyService.HotKeyPressed -= OnGlobalHotKeyPressed; // Unsubscribe
                 globalHotkeyService.Dispose(); // This calls UnregisterHotKey
+            }
+
+            if (_vramTimer != null)
+            {
+                _vramTimer.Stop();
+                _vramTimer.Dispose();
+            }
+            foreach (var counter in _vramCounters)
+            {
+                counter.Dispose();
             }
 
             transcriptionService?.Dispose();
