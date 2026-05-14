@@ -23,13 +23,6 @@ namespace WhisperNetConsoleDemo
     {
     public class TranscriptionService : IDisposable // Consider IAsyncDisposable
         {
-        // --- Constants ---
-        private const double NORMAL_MAX_CHUNK_DURATION_SECONDS = 6.0;
-        private const double NORMAL_SILENCE_THRESHOLD_SECONDS = 1.5;
-        // Dictation mode constants remain
-        private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 3.0;  // Shorter max duration
-        private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.75; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
-        private const float VAD_GAIN_MULTIPLIER = 1.0f;
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
         public event Action<string>? FullTranscriptionReady;
@@ -278,7 +271,7 @@ namespace WhisperNetConsoleDemo
 
         public async Task DisposeLLMResourcesAsync()
             {
-            OnDebugMessage("Disposing LLamaSharp resources (synchronously within async method for test)..."); 
+            OnDebugMessage("Disposing LLamaSharp resources (synchronously within async method for test)...");
             if (llmModelWeights != null || llmExecutor != null)
                 {
                 DisposeLLMResourcesInternal(); // Call directly
@@ -346,7 +339,7 @@ namespace WhisperNetConsoleDemo
                         {
                             short sample = BitConverter.ToInt16(rawFrame, i);
                             // Multiply and clamp to prevent digital clipping
-                            int boosted = (int)(sample * VAD_GAIN_MULTIPLIER);
+                            int boosted = (int)(sample * Settings.VadGainMultiplier);
                             short clamped = (short)Math.Clamp(boosted, short.MinValue, short.MaxValue);
 
                             byte[] bytes = BitConverter.GetBytes(clamped);
@@ -391,8 +384,8 @@ namespace WhisperNetConsoleDemo
             if (!speechInSeg && _hasSpeechInCurrentChunk)
             {
                 double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
-                                                   DICTATION_SILENCE_THRESHOLD_SECONDS :
-                                                   NORMAL_SILENCE_THRESHOLD_SECONDS;
+                                                   Settings.DictationSilenceThresholdSeconds :
+                                                   Settings.NormalSilenceThresholdSeconds;
                 if (currentAudioChunkStream != null && currentAudioChunkStream.Length > 0 &&
                    (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
                 {
@@ -405,8 +398,8 @@ namespace WhisperNetConsoleDemo
             bool discardChunk = false;
 
             double currentMaxChunkDurationSeconds = this.IsDictationModeActive ?
-                                                DICTATION_MAX_CHUNK_DURATION_SECONDS :
-                                                NORMAL_MAX_CHUNK_DURATION_SECONDS;
+                                                Settings.DictationMaxChunkDurationSeconds :
+                                                Settings.NormalMaxChunkDurationSeconds;
 
             if (currentAudioChunkStream.Length > (waveFormatForWhisper.AverageBytesPerSecond / 2))
             {
@@ -798,16 +791,7 @@ namespace WhisperNetConsoleDemo
                     }
                 var inferenceParams = new InferenceParams()
                     {
-                    AntiPrompts = new List<string>
-                    {
-                        "<|im_end|>",           // Qwen / ChatML format
-                        "<|eot_id|>",           // Llama 3 Instruct format
-                        "<|end_of_text|>",      // Llama Base format
-                        "<|fim_end|>",          // Catches the specific Llama Fill-in-Middle loop you experienced
-                        "<|im_start|>",         // Stops it from simulating the start of a new turn
-                        "\nuser:", "\nUser:",
-                        "<|user|>"              // Generic fallbacks
-                    },
+                    AntiPrompts = Settings.LLMAntiPrompts,
                     MaxTokens = Settings.LLMMaxOutputTokens,
                     SamplingPipeline = new LLama.Sampling.DefaultSamplingPipeline() // other pipelines, including custom ones, are possible
                         {
@@ -828,7 +812,7 @@ namespace WhisperNetConsoleDemo
 
                 // Clean up any leaked stop tokens from LLamaSharp's stream
                 string finalResult = outputBuffer.ToString().Trim();
-                var tagsToStrip = new[] { "<|im_end|>", "<|eot_id|>", "<|end_of_text|>", "<|fim_end|>", "<|im_start|>" };
+                var tagsToStrip = Settings.LLMAntiPrompts;
 
                 foreach (var tag in tagsToStrip)
                 {
@@ -898,7 +882,10 @@ namespace WhisperNetConsoleDemo
             OnDebugMessage("LLM initialization failed. The current session will not use LLM, but recording can proceed without it if started again.");
 
             OnDebugMessage($"Starting recording with mic [{deviceNumber}]...");
-            currentSessionTranscribedText.Clear();
+            lock (currentSessionTranscribedText)
+            {
+                currentSessionTranscribedText.Clear();
+            }
             isRecording = true;
             StartNewChunk();
             waveSource = new WaveInEvent { DeviceNumber = deviceNumber, WaveFormat = waveFormatForWhisper };

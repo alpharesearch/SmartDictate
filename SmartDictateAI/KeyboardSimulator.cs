@@ -107,36 +107,34 @@ public static class KeyboardSimulator
         if (textToSend.Length > CLIPBOARD_PASTE_THRESHOLD)
         {
             logger?.Invoke($"Using clipboard paste for long text (len={textToSend.Length}).");
-            IDataObject? backup = null;
-            try
+            var t = new Thread(() =>
             {
-                // Backup clipboard on STA thread
-                backup = GetClipboardDataObjectSafe();
-
-                // Set clipboard text on STA thread
-                SetClipboardTextSafe(textToSend);
-
-                // Small pause to allow clipboard to update
-                Thread.Sleep(60);
-
-                // Paste using low-level SendInput
-                SendCtrlV();
-
-                Thread.Sleep(60); // allow paste to complete
-            }
-            catch (Exception ex)
-            {
-                logger?.Invoke($"Clipboard paste path failed: {ex.Message}");
-                // Fall back to character input below if needed
-            }
-            finally
-            {
-                if (backup != null)
+                IDataObject? backup = null;
+                try
                 {
-                    try { RestoreClipboardDataObjectSafe(backup); }
-                    catch { /* ignore */ }
+                    backup = Clipboard.GetDataObject();
+                    Clipboard.SetText(textToSend);
+                    Thread.Sleep(60); // Allow clipboard to update
+                    SendCtrlVWrapper();
+                    Thread.Sleep(60); // Allow target app to process paste
                 }
-            }
+                catch (Exception ex)
+                {
+                    logger?.Invoke($"Clipboard paste path failed: {ex.Message}");
+                }
+                finally
+                {
+                    if (backup != null)
+                    {
+                        try { Clipboard.SetDataObject(backup, true); }
+                        catch { /* ignore */ }
+                    }
+                }
+            });
+
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
+            t.Join();
 
             return;
         }
@@ -206,45 +204,6 @@ public static class KeyboardSimulator
     private static void SendCtrlVWrapper()
     {
         SendCtrlV();
-    }
-
-    // STA-thread helpers for clipboard operations
-    private static IDataObject? GetClipboardDataObjectSafe()
-    {
-        IDataObject? result = null;
-        var t = new Thread(() =>
-        {
-            try { result = Clipboard.GetDataObject(); }
-            catch { result = null; }
-        });
-        t.SetApartmentState(ApartmentState.STA);
-        t.Start();
-        t.Join();
-        return result;
-    }
-
-    private static void SetClipboardTextSafe(string text)
-    {
-        var t = new Thread(() =>
-        {
-            try { Clipboard.SetText(text); }
-            catch { }
-        });
-        t.SetApartmentState(ApartmentState.STA);
-        t.Start();
-        t.Join();
-    }
-
-    private static void RestoreClipboardDataObjectSafe(IDataObject data)
-    {
-        var t = new Thread(() =>
-        {
-            try { Clipboard.SetDataObject(data, true); }
-            catch { }
-        });
-        t.SetApartmentState(ApartmentState.STA);
-        t.Start();
-        t.Join();
     }
 
     // Alternative using System.Windows.Forms.SendKeys (simpler but less reliable with some apps)

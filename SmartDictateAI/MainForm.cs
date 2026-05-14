@@ -376,8 +376,20 @@ namespace WhisperNetConsoleDemo
             }
         }
 
+        private bool _isClosing = false;
         private async void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (!_isClosing && isFormRecordingState && transcriptionService != null)
+            {
+                e.Cancel = true; // Prevent closing immediately while recording
+                AppendToDebugOutput("Form closing during recording, stopping service...");
+                btnStartStop.Enabled = false; // Prevent further interaction
+                await transcriptionService.StopRecording();
+                _isClosing = true;
+                this.Close(); // Call Close again after we finish stopping
+                return;
+            }
+
             if (transcriptionService != null)
             {
                 AppendToDebugOutput("Form1_FormClosing: Unsubscribing from TranscriptionService events.");
@@ -388,11 +400,6 @@ namespace WhisperNetConsoleDemo
                 transcriptionService.SettingsUpdated -= OnServiceSettingsUpdated;
                 transcriptionService.ProcessingStarted -= OnServiceProcessingStarted;
                 transcriptionService.ProcessingFinished -= OnServiceProcessingFinished;
-            }
-            if (isFormRecordingState && transcriptionService != null)
-            {
-                AppendToDebugOutput("Form closing during recording, stopping service.");
-                await transcriptionService.StopRecording();
             }
             if (globalHotkeyService != null)
             {
