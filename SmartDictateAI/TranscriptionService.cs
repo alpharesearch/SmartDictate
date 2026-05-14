@@ -29,7 +29,7 @@ namespace WhisperNetConsoleDemo
         // Dictation mode constants remain
         private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 3.0;  // Shorter max duration
         private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.75; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
-
+        private const float VAD_GAIN_MULTIPLIER = 5.0f;
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
         public event Action<string>? FullTranscriptionReady;
@@ -40,6 +40,7 @@ namespace WhisperNetConsoleDemo
         public event Action? ProcessingFinished;
 
         // --- State Fields ---
+        private bool _hasSpeechInCurrentChunk = false;
         private readonly object _audioStreamLock = new object();
         private bool isRecording = false;
         private WaveInEvent? waveSource = null;
@@ -79,7 +80,7 @@ namespace WhisperNetConsoleDemo
         // --- WebRtcVadSharp integration ---
         private WebRtcVad? _vad;
         private List<byte> _vadAudioBuffer = new List<byte>();
-        private const int VAD_FRAME_BYTES = 960; // 30ms @16kHz mono 16-bit = 480 samples * 2 bytes = 960 bytes
+        private const int VAD_FRAME_BYTES = 640;
 
         public TranscriptionService()
             {
@@ -307,11 +308,10 @@ namespace WhisperNetConsoleDemo
 
             // Clear VAD buffer when starting a new chunk so frames don't cross chunk boundaries unnecessarily
             _vadAudioBuffer.Clear();
-            }
-
+            _hasSpeechInCurrentChunk = false;
+        }
         private async void WaveSource_DataAvailable(object? sender, WaveInEventArgs e)
-            {
-
+        {
             lock (_audioStreamLock)
             {
                 if (!isRecording || chunkWaveFile == null || currentAudioChunkStream == null)
@@ -325,158 +325,199 @@ namespace WhisperNetConsoleDemo
 
             bool speechInSeg = false;
 
-            // Use WebRtcVadSharp: accumulate incoming bytes into a rolling buffer and analyze 960-byte frames (30ms @16kHz 16-bit mono)
             try
-                {
+            {
                 if (_vad != null)
-                    {
-                    // Only append the valid bytes recorded in this event
+                {
                     _vadAudioBuffer.AddRange(e.Buffer.Take(e.BytesRecorded));
 
                     while (_vadAudioBuffer.Count >= VAD_FRAME_BYTES)
-                        {
-                        var frame = _vadAudioBuffer.GetRange(0, VAD_FRAME_BYTES).ToArray();
+                    {
+                        var rawFrame = _vadAudioBuffer.GetRange(0, VAD_FRAME_BYTES).ToArray();
                         _vadAudioBuffer.RemoveRange(0, VAD_FRAME_BYTES);
 
+                        // --- SOFTWARE GAIN FOR VAD ---
+                        // Convert bytes to 16-bit samples, amplify, and convert back
+                        byte[] amplifiedFrame = new byte[VAD_FRAME_BYTES];
+                        for (int i = 0; i < VAD_FRAME_BYTES; i += 2)
+                        {
+                            short sample = BitConverter.ToInt16(rawFrame, i);
+                            // Multiply and clamp to prevent digital clipping
+                            int boosted = (int)(sample * VAD_GAIN_MULTIPLIER);
+                            short clamped = (short)Math.Clamp(boosted, short.MinValue, short.MaxValue);
+
+                            byte[] bytes = BitConverter.GetBytes(clamped);
+                            amplifiedFrame[i] = bytes[0];
+                            amplifiedFrame[i + 1] = bytes[1];
+                        }
+                        // -----------------------------
+
                         try
+                        {
+                            // Use the AMPLIFIED frame for the VAD check
+                            if (_vad != null && _vad.HasSpeech(amplifiedFrame, SampleRate.Is16kHz, FrameLength.Is20ms))
                             {
-                            // Use the correct overload: HasSpeech(byte[] audioFrame)
-                            if (_vad.HasSpeech(frame))
+                                if (!_hasSpeechInCurrentChunk)
                                 {
+                                    OnDebugMessage(">>> VAD TRIGGERED: Speech Detected with Gain! <<<");
+                                }
                                 lastSpeechTime = DateTime.UtcNow;
                                 silenceDetectedRecently = false;
                                 speechInSeg = true;
-                                // We don't break here, continue to consume frames so buffer is kept in sync
-                                }
-                            }
-                        catch (Exception ex)
-                            {
-                            OnDebugMessage($"VAD processing error: {ex.Message}");
+                                _hasSpeechInCurrentChunk = true;
                             }
                         }
+                        catch (Exception ex) { OnDebugMessage($"VAD processing error: {ex.Message}"); }
                     }
                 }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"VAD buffer error: {ex.Message}");
-                }
+            }
+            catch (Exception ex) { OnDebugMessage($"VAD buffer error: {ex.Message}"); }
 
-            // If no VAD-detected speech in this batch, check silence based on time since last speech
-            if (!speechInSeg)
-                {
+            if (!speechInSeg && _hasSpeechInCurrentChunk)
+            {
                 double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
                                                    DICTATION_SILENCE_THRESHOLD_SECONDS :
                                                    NORMAL_SILENCE_THRESHOLD_SECONDS;
-                if (currentAudioChunkStream != null && currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
-                    {
+                if (currentAudioChunkStream != null && currentAudioChunkStream.Length > 0 &&
+                   (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
+                {
                     silenceDetectedRecently = true;
-                    }
                 }
+            }
 
             TimeSpan chunkDur = DateTime.UtcNow - chunkStartTime;
             bool process = false;
+            bool discardChunk = false;
+
             double currentMaxChunkDurationSeconds = this.IsDictationModeActive ?
                                                 DICTATION_MAX_CHUNK_DURATION_SECONDS :
                                                 NORMAL_MAX_CHUNK_DURATION_SECONDS;
+
             if (currentAudioChunkStream.Length > (waveFormatForWhisper.AverageBytesPerSecond / 2))
-                {
+            {
                 if (chunkDur >= TimeSpan.FromSeconds(currentMaxChunkDurationSeconds))
+                {
+                    if (_hasSpeechInCurrentChunk)
                     {
-                    OnDebugMessage($"Max chunk duration ({currentMaxChunkDurationSeconds}s) reached (Mode: {(this.IsDictationModeActive ? "Dictate" : "Normal")}).");
-                    process = true;
+                        OnDebugMessage($"Max chunk duration ({currentMaxChunkDurationSeconds}s) reached.");
+                        process = true;
                     }
-                else if (silenceDetectedRecently)
+                    else
                     {
-                    OnDebugMessage($"Silence detected, processing chunk (Mode: {(this.IsDictationModeActive ? "Dictate" : "Normal")})).");
-                    process = true;
+                        discardChunk = true;
                     }
                 }
-            if (!activelyProcessingChunk && process)
+                else if (silenceDetectedRecently)
+                {
+                    OnDebugMessage("Silence detected after speech, processing chunk.");
+                    process = true;
+                }
+            }
+
+            if (!activelyProcessingChunk && (process || discardChunk))
             {
-                ProcessingStarted?.Invoke();
-                activelyProcessingChunk = true;
-                OnDebugMessage($"Chunk ready. Dur: {chunkDur.TotalSeconds:F1}s, Silence: {silenceDetectedRecently}, Len: {currentAudioChunkStream.Length}");
+                if (process)
+                {
+                    ProcessingStarted?.Invoke();
+                    activelyProcessingChunk = true;
+                }
 
                 MemoryStream? streamToSend = null;
                 WaveFileWriter? capturedChunkFile;
                 MemoryStream? capturedAudioChunkStream;
 
-                // 1. Create the new streams for the NEXT chunk BEFORE stopping the current one
                 var nextAudioChunkStream = new MemoryStream();
                 var nextChunkWaveFile = new WaveFileWriter(nextAudioChunkStream, waveFormatForWhisper);
 
-                // 2. Perform a seamless swap inside the lock so NAudio never drops a frame
                 lock (_audioStreamLock)
                 {
-                    // Capture the old streams
                     capturedChunkFile = chunkWaveFile;
                     capturedAudioChunkStream = currentAudioChunkStream;
 
-                    // Instantly swap to the new streams
                     currentAudioChunkStream = nextAudioChunkStream;
                     chunkWaveFile = nextChunkWaveFile;
 
-                    // Reset timing variables for the new chunk
                     chunkStartTime = DateTime.UtcNow;
                     lastSpeechTime = DateTime.UtcNow;
                     silenceDetectedRecently = false;
+                    _hasSpeechInCurrentChunk = false;
                 }
 
-                // 3. Process the captured streams safely on this thread
-                try
+                if (process)
                 {
-                    capturedChunkFile?.Flush();
-                    if (capturedAudioChunkStream != null && capturedAudioChunkStream.Length > 0)
+                    try
                     {
-                        capturedAudioChunkStream.Position = 0;
-                        streamToSend = new MemoryStream();
-                        await capturedAudioChunkStream.CopyToAsync(streamToSend);
-                        streamToSend.Position = 0;
+                        capturedChunkFile?.Flush();
+                        if (capturedAudioChunkStream != null && capturedAudioChunkStream.Length > 0)
+                        {
+                            capturedAudioChunkStream.Position = 0;
+                            streamToSend = new MemoryStream();
+                            await capturedAudioChunkStream.CopyToAsync(streamToSend);
+                            streamToSend.Position = 0;
+                        }
                     }
-                }
-                catch (Exception ex)
+                    catch (Exception ex)
                     {
-                    OnDebugMessage($"Error prep stream: {ex.Message}");
-                    activelyProcessingChunk = false;
-                    streamToSend?.Dispose();
-                    capturedChunkFile?.Dispose();
-                    capturedAudioChunkStream?.Dispose();
+                        OnDebugMessage($"Error prep stream: {ex.Message}");
+                        activelyProcessingChunk = false;
+                        streamToSend?.Dispose();
                     }
-                finally
+                    finally
                     {
-                    ProcessingFinished?.Invoke();
-                    capturedChunkFile?.Dispose(); // This disposes capturedAudioChunkStream
+                        capturedChunkFile?.Dispose();
+                        capturedAudioChunkStream?.Dispose();
                     }
 
-                if (streamToSend != null && streamToSend.Length > 0)
+                    if (streamToSend != null && streamToSend.Length > 0)
                     {
-                    if (Settings.ShowDebugMessages)
-                    {
-                        SaveDebugAudioChunk(streamToSend, "chunk");
+                        if (Settings.ShowDebugMessages)
+                        {
+                            SaveDebugAudioChunk(streamToSend, "chunk");
+                        }
+                        currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend, this.IsDictationModeActive);
+                        try
+                        {
+                            await currentTranscriptionTask;
+                        }
+                        catch (Exception ex)
+                        {
+                            OnDebugMessage($"Err transcription task: {ex.Message}");
+                        }
+                        finally
+                        {
+                            currentTranscriptionTask = null;
+                            activelyProcessingChunk = false;
+                            ProcessingFinished?.Invoke();
+                        }
                     }
-                    currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend, this.IsDictationModeActive);
-                    try
-                        {
-                        await currentTranscriptionTask;
-                        }
-                    catch (Exception ex)
-                        {
-                        OnDebugMessage($"Err transcription task: {ex.Message}");
-                        }
-                    finally
-                        {
-                        currentTranscriptionTask = null;
+                    else
+                    {
                         activelyProcessingChunk = false;
+                        streamToSend?.Dispose();
+                        ProcessingFinished?.Invoke();
+                    }
+                }
+                else if (discardChunk)
+                {
+                    // SAVE THE AUDIO IT THREW AWAY SO WE CAN LISTEN TO IT
+                    OnDebugMessage("Discarding chunk (No speech detected by VAD).");
+                    try
+                    {
+                        capturedChunkFile?.Flush();
+                        if (Settings.ShowDebugMessages && capturedAudioChunkStream != null)
+                        {
+                            SaveDebugAudioChunk(capturedAudioChunkStream, "discarded");
                         }
                     }
-                else
+                    catch { }
+                    finally
                     {
-                    activelyProcessingChunk = false;
-                    streamToSend?.Dispose();
+                        capturedChunkFile?.Dispose();
+                        capturedAudioChunkStream?.Dispose();
                     }
                 }
             }
-
+        }
         private async void WaveSource_RecordingStopped(object? sender, StoppedEventArgs e)
             {
             OnDebugMessage("WaveSource_RecordingStopped - Event ENTERED.");
