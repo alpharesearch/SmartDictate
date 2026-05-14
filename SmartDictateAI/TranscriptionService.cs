@@ -13,6 +13,8 @@ using Whisper.net;
 using LLama; // Core LLamaSharp
 using LLama.Common;
 using System.Xml; // For ModelParams, InferenceParams
+using System.Reflection;
+
 // using LLama.Abstractions; // If using interfaces like ILLamaExecutor
 // using WhisperNetConsoleDemo; // If AppSettings is in a separate file in this namespace
 
@@ -89,11 +91,20 @@ namespace WhisperNetConsoleDemo
         public bool IsDictationModeActive { get; private set; } = false;
         private TaskCompletionSource<bool>? _dictationModeStopSignal;
 
+        // --- WebRTC VAD (reflection-backed) ---
+        private object? _vadInstance = null; // reflection-created VAD instance
+        private MethodInfo? _vadHasSpeechMethod = null;
+        private const int VAD_FRAME_BYTES = 960; // 30ms @16kHz mono 16-bit = 480 samples * 2 bytes = 960 bytes
+        private readonly byte[] _vadHoldingBuffer = new byte[VAD_FRAME_BYTES];
+        private int _vadHoldingIndex = 0;
+
         public TranscriptionService()
             {
             LoadAppSettings();
             currentWhisperModelPath = Settings.ModelFilePath; // For Whisper
             calibratedEnergySilenceThreshold = Settings.CalibratedEnergySilenceThreshold;
+            // Try to initialize VAD reflectively; if it fails we'll still function without it.
+            TryInitializeVadReflective();
             }
 
         private void OnDebugMessage(string message) => DebugMessageGenerated?.Invoke(message);
@@ -308,45 +319,103 @@ namespace WhisperNetConsoleDemo
             int bytesProcEvent = e.BytesRecorded, offset = 0;
             if (silenceDetectionBuffer.Length == 0)
                 return;
+
+            // Feed into our VAD holding buffer in 960-byte frames
             while (bytesProcEvent > 0)
                 {
-                int toCopy = Math.Min(bytesProcEvent, silenceDetectionBuffer.Length - silenceDetectionBufferBytesRecorded);
-                if (toCopy <= 0)
-                    break;
-                Buffer.BlockCopy(e.Buffer, offset, silenceDetectionBuffer, silenceDetectionBufferBytesRecorded, toCopy);
-                silenceDetectionBufferBytesRecorded += toCopy;
+                int toCopy = Math.Min(bytesProcEvent, VAD_FRAME_BYTES - _vadHoldingIndex);
+                if (toCopy <= 0) break;
+                Buffer.BlockCopy(e.Buffer, offset, _vadHoldingBuffer, _vadHoldingIndex, toCopy);
+                _vadHoldingIndex += toCopy;
                 bytesProcEvent -= toCopy;
                 offset += toCopy;
-                if (silenceDetectionBufferBytesRecorded == silenceDetectionBuffer.Length)
+
+                if (_vadHoldingIndex == VAD_FRAME_BYTES)
                     {
-                    float maxSample = 0f;
-                    for (int i = 0; i < silenceDetectionBuffer.Length; i += waveFormatForWhisper.BlockAlign)
+                    bool vadSaysSpeech = false;
+                    try
                         {
-                        if (waveFormatForWhisper.BitsPerSample == 16 && waveFormatForWhisper.Channels == 1 && i + 1 < silenceDetectionBuffer.Length)
+                        if (_vadInstance != null && _vadHasSpeechMethod != null)
                             {
-                            short s = BitConverter.ToInt16(silenceDetectionBuffer, i);
-                            float sf = s / 32768.0f;
-                            if (Math.Abs(sf) > maxSample)
-                                maxSample = Math.Abs(sf);
+                            var parameters = _vadHasSpeechMethod.GetParameters();
+                            object? result = null;
+                            if (parameters.Length == 1)
+                                result = _vadHasSpeechMethod.Invoke(_vadInstance, new object[] { _vadHoldingBuffer });
+                            else if (parameters.Length == 2)
+                                result = _vadHasSpeechMethod.Invoke(_vadInstance, new object[] { _vadHoldingBuffer, waveFormatForWhisper.SampleRate });
+
+                            if (result is bool b) vadSaysSpeech = b;
+                            else if (result is int i) vadSaysSpeech = i != 0;
                             }
                         }
-                    if (maxSample > calibratedEnergySilenceThreshold)
-                        speechInSeg = true;
-                    silenceDetectionBufferBytesRecorded = 0;
+                    catch (Exception ex)
+                        {
+                        OnDebugMessage($"VAD invocation error: {ex.Message}");
+                        }
+
+                    if (vadSaysSpeech)
+                        {
+                        lastSpeechTime = DateTime.UtcNow;
+                        silenceDetectedRecently = false;
+                        speechInSeg = true; // mark speech observed in this event
+                        }
+
+                    // Reset holding index for next frame
+                    _vadHoldingIndex = 0;
                     }
                 }
-            if (speechInSeg)
+
+            // Fallback: keep previous energy-based check if VAD not enabled or didn't detect speech in this batch
+            if (!speechInSeg)
                 {
-                lastSpeechTime = DateTime.UtcNow;
-                silenceDetectedRecently = false;
-                }
-            else
-                {
-                double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
-                                                   DICTATION_SILENCE_THRESHOLD_SECONDS :
-                                                   NORMAL_SILENCE_THRESHOLD_SECONDS;
-                if (currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
-                    silenceDetectedRecently = true;
+                int samplesToInspect = silenceDetectionBuffer.Length; // older energy buffer logic
+                int bytesToUse = Math.Min(e.BytesRecorded, silenceDetectionBuffer.Length);
+                // existing processing copied below - continue using existing mechanism
+                // (we already filled silenceDetectionBuffer in older code path; to keep compatibility we reuse it)
+                int bytesProc = e.BytesRecorded; // continue with earlier energy-based filling
+                // Reuse existing loop from earlier version to update silenceDetectedRecently based on energy
+                bytesProcEvent = e.BytesRecorded; offset = 0;
+                while (bytesProcEvent > 0)
+                    {
+                    int toCopy = Math.Min(bytesProcEvent, silenceDetectionBuffer.Length - silenceDetectionBufferBytesRecorded);
+                    if (toCopy <= 0)
+                        break;
+                    Buffer.BlockCopy(e.Buffer, offset, silenceDetectionBuffer, silenceDetectionBufferBytesRecorded, toCopy);
+                    silenceDetectionBufferBytesRecorded += toCopy;
+                    bytesProcEvent -= toCopy;
+                    offset += toCopy;
+                    if (silenceDetectionBufferBytesRecorded == silenceDetectionBuffer.Length)
+                        {
+                        float maxSample = 0f;
+                        for (int i = 0; i < silenceDetectionBuffer.Length; i += waveFormatForWhisper.BlockAlign)
+                            {
+                            if (waveFormatForWhisper.BitsPerSample == 16 && waveFormatForWhisper.Channels == 1 && i + 1 < silenceDetectionBuffer.Length)
+                                {
+                                short s = BitConverter.ToInt16(silenceDetectionBuffer, i);
+                                float sf = s / 32768.0f;
+                                if (Math.Abs(sf) > maxSample)
+                                    maxSample = Math.Abs(sf);
+                                }
+                            }
+                        if (maxSample > calibratedEnergySilenceThreshold)
+                            speechInSeg = true;
+                        silenceDetectionBufferBytesRecorded = 0;
+                        }
+                    }
+
+                if (speechInSeg)
+                    {
+                    lastSpeechTime = DateTime.UtcNow;
+                    silenceDetectedRecently = false;
+                    }
+                else
+                    {
+                    double currentSilenceThresholdSeconds = this.IsDictationModeActive ?
+                                                       DICTATION_SILENCE_THRESHOLD_SECONDS :
+                                                       NORMAL_SILENCE_THRESHOLD_SECONDS;
+                    if (currentAudioChunkStream.Length > 0 && (DateTime.UtcNow - lastSpeechTime) > TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
+                        silenceDetectedRecently = true;
+                    }
                 }
 
             TimeSpan chunkDur = DateTime.UtcNow - chunkStartTime;
@@ -363,7 +432,7 @@ namespace WhisperNetConsoleDemo
                     }
                 else if (silenceDetectedRecently)
                     {
-                    OnDebugMessage($"Silence detected, processing chunk (Mode: {(this.IsDictationModeActive ? "Dictate" : "Normal")}).");
+                    OnDebugMessage($"Silence detected, processing chunk (Mode: {(this.IsDictationModeActive ? "Dictate" : "Normal")})).");
                     process = true;
                     }
                 }
@@ -752,6 +821,103 @@ namespace WhisperNetConsoleDemo
                 }
             }
 
+        private void TryInitializeVadReflective()
+            {
+            try
+                {
+                // Attempt several likely type names until one matches the package
+                var asm = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name != null && a.GetName().Name.IndexOf("WebRtcVad", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                Type? vadType = null;
+                Assembly? targetAsm = null;
+                if (asm != null)
+                    {
+                    targetAsm = asm;
+                    vadType = asm.GetType("WebRtcVadSharp.WebRtcVad") ?? asm.GetType("WebRtcVadSharp.Vad") ?? asm.GetType("WebRtcVadSharp.WebRtcVadSharp.WebRtcVad");
+                    }
+                else
+                    {
+                    // Try to load assembly by name
+                    try { targetAsm = Assembly.Load("WebRtcVadSharp"); } catch { targetAsm = null; }
+                    if (targetAsm != null)
+                        vadType = targetAsm.GetType("WebRtcVadSharp.WebRtcVad") ?? targetAsm.GetType("WebRtcVadSharp.Vad");
+                    }
+
+                if (vadType == null || targetAsm == null)
+                    {
+                    OnDebugMessage("VAD: WebRtcVadSharp assembly/type not found; VAD disabled.");
+                    return;
+                    }
+
+                // Try to find a mode enum type and the VeryAggressive value
+                Type? modeType = targetAsm.GetType("WebRtcVadSharp.VadMode") ?? targetAsm.GetType("WebRtcVadSharp.Mode") ?? targetAsm.GetType("WebRtcVadSharp.WebRtcVadSharp.VadMode");
+                object? modeValue = null;
+                if (modeType != null && modeType.IsEnum)
+                    {
+                    // Prefer "VeryAggressive" or "Aggressive" fallback
+                    if (Enum.TryParse(modeType, "VeryAggressive", out var mv)) modeValue = mv;
+                    else if (Enum.TryParse(modeType, "Aggressive", out mv)) modeValue = mv;
+                    else
+                        {
+                        // Use first enum value as fallback
+                        var values = Enum.GetValues(modeType);
+                        modeValue = values.Length > 0 ? values.GetValue(0) : null;
+                        }
+                    }
+
+                // Try to construct VAD instance with constructor taking enum or int
+                ConstructorInfo? ctor = null;
+                object? instance = null;
+
+                if (modeValue != null)
+                    ctor = vadType.GetConstructor(new Type[] { modeType });
+                if (ctor != null)
+                    instance = ctor.Invoke(new object[] { modeValue! });
+                else
+                    {
+                    // Try constructor taking int
+                    ctor = vadType.GetConstructor(new Type[] { typeof(int) });
+                    if (ctor != null)
+                        {
+                        int intMode = modeValue != null ? Convert.ToInt32(modeValue) : 3; // 3 is commonly VeryAggressive
+                        instance = ctor.Invoke(new object[] { intMode });
+                        }
+                    else
+                        {
+                        // Try parameterless
+                        ctor = vadType.GetConstructor(Type.EmptyTypes);
+                        if (ctor != null) instance = ctor.Invoke(null);
+                        }
+                    }
+
+                if (instance == null)
+                    {
+                    OnDebugMessage("VAD: could not create instance via reflection; VAD disabled.");
+                    return;
+                    }
+
+                // Find HasSpeech method (common signatures: bool HasSpeech(byte[] pcm16) or bool HasSpeech(byte[] pcm16, int sampleRate))
+                var hasSpeech = vadType.GetMethod("HasSpeech", new Type[] { typeof(byte[]) })
+                                ?? vadType.GetMethod("HasSpeech", new Type[] { typeof(byte[]), typeof(int) })
+                                ?? vadType.GetMethod("IsSpeech", new Type[] { typeof(byte[]) })
+                                ?? vadType.GetMethod("IsSpeech", new Type[] { typeof(byte[]), typeof(int) });
+
+                if (hasSpeech == null)
+                    {
+                    OnDebugMessage("VAD: Could not find HasSpeech/IsSpeech method; VAD disabled.");
+                    return;
+                    }
+
+                _vadInstance = instance;
+                _vadHasSpeechMethod = hasSpeech;
+                OnDebugMessage("VAD: initialized reflectively and enabled.");
+                }
+            catch (Exception ex)
+                {
+                OnDebugMessage("VAD init error: " + ex.Message);
+                }
+            }
 
         // --- Public Methods for Form1 to Call ---
         public async Task<bool> StartRecordingAsync(int deviceNumber)
