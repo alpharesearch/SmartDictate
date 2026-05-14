@@ -5,6 +5,7 @@ using System.IO; // For Path
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Windows.Forms;
+using System.Collections.Generic;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 // using WhisperNetConsoleDemo; // If AppSettings and TranscriptionService are in this namespace
 
@@ -35,6 +36,7 @@ namespace WhisperNetConsoleDemo
 
         private System.Windows.Forms.Timer? _vramTimer;
         private List<PerformanceCounter> _vramCounters = new List<PerformanceCounter>();
+        private Dictionary<string, PerformanceCounter> _processVramCounters = new Dictionary<string, PerformanceCounter>();
 
         public MainForm()
         {
@@ -90,6 +92,10 @@ namespace WhisperNetConsoleDemo
 
         private void UpdateVramUsage()
         {
+            // Get standard CPU RAM (Working Set) usage
+            long ramBytes = Process.GetCurrentProcess().WorkingSet64;
+            string ramText = $"RAM: {ramBytes / (1024f * 1024f * 1024f):F2} GB";
+
             if (_vramCounters.Count > 0)
             {
                 try
@@ -99,16 +105,69 @@ namespace WhisperNetConsoleDemo
                     {
                         totalVramBytes += counter.NextValue();
                     }
-                    label_vram.Text = $"VRAM: {totalVramBytes / (1024 * 1024 * 1024):F2} GB";
+
+                    float processVramBytes = 0;
+                    bool processVramSuccess = false;
+                    try
+                    {
+                        string pidPrefix = $"pid_{Process.GetCurrentProcess().Id}_";
+                        var processCategory = new PerformanceCounterCategory("GPU Process Memory");
+                        var currentInstances = processCategory.GetInstanceNames();
+
+                        foreach (var instance in currentInstances)
+                        {
+                            // Check for instances matching our current process ID and add them if we aren't tracking them yet
+                            if (instance.StartsWith(pidPrefix, StringComparison.OrdinalIgnoreCase) && !_processVramCounters.ContainsKey(instance))
+                            {
+                                _processVramCounters[instance] = new PerformanceCounter("GPU Process Memory", "Dedicated Usage", instance, true);
+                            }
+                        }
+
+                        // Remove counters for GPU engines/allocations that our process has closed
+                        var toRemove = new List<string>();
+                        foreach (var key in _processVramCounters.Keys)
+                        {
+                            if (Array.IndexOf(currentInstances, key) < 0)
+                            {
+                                toRemove.Add(key);
+                            }
+                        }
+                        foreach (var key in toRemove)
+                        {
+                            _processVramCounters[key].Dispose();
+                            _processVramCounters.Remove(key);
+                        }
+
+                        // Accumulate the memory specifically used by this application
+                        foreach (var counter in _processVramCounters.Values)
+                        {
+                            processVramBytes += counter.NextValue();
+                        }
+                        processVramSuccess = true;
+                    }
+                    catch
+                    {
+                        // Process VRAM tracking might fail if the OS/Drivers don't support the specific performance category.
+                        // It will gracefully fall back to just total VRAM below.
+                    }
+
+                    if (processVramSuccess)
+                    {
+                        label_vram.Text = $"{ramText} | VRAM: {processVramBytes / (1024f * 1024f * 1024f):F2} GB (App) / {totalVramBytes / (1024f * 1024f * 1024f):F2} GB (Total)";
+                    }
+                    else
+                    {
+                        label_vram.Text = $"{ramText} | VRAM: {totalVramBytes / (1024f * 1024f * 1024f):F2} GB";
+                    }
                 }
                 catch
                 {
-                    label_vram.Text = "VRAM: Error";
+                    label_vram.Text = $"{ramText} | VRAM: Error";
                 }
             }
             else
             {
-                label_vram.Text = "VRAM: N/A";
+                label_vram.Text = $"{ramText} | VRAM: N/A";
             }
         }
 
@@ -465,6 +524,10 @@ namespace WhisperNetConsoleDemo
                 _vramTimer.Dispose();
             }
             foreach (var counter in _vramCounters)
+            {
+                counter.Dispose();
+            }
+            foreach (var counter in _processVramCounters.Values)
             {
                 counter.Dispose();
             }

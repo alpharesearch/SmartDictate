@@ -69,12 +69,12 @@
             // 
             // cmbVadSensitivity
             // 
-            cmbVadSensitivity.Location = new Point(457, 7);
+            cmbVadSensitivity.Location = new Point(466, 7);
             cmbVadSensitivity.Margin = new Padding(1);
             cmbVadSensitivity.Name = "cmbVadSensitivity";
-            cmbVadSensitivity.Size = new Size(82, 23);
+            cmbVadSensitivity.Size = new Size(73, 23);
             cmbVadSensitivity.TabIndex = 3;
-            cmbVadSensitivity.Text = "Calibration";
+            cmbVadSensitivity.Text = "VAD";
             // 
             // btnModelSettings
             // 
@@ -207,10 +207,11 @@
             // label_vram
             // 
             label_vram.AutoSize = true;
-            label_vram.Location = new Point(272, 12);
+            label_vram.Font = new Font("Segoe UI", 7F);
+            label_vram.Location = new Point(229, 11);
             label_vram.Margin = new Padding(1, 0, 1, 0);
             label_vram.Name = "label_vram";
-            label_vram.Size = new Size(40, 15);
+            label_vram.Size = new Size(32, 12);
             label_vram.TabIndex = 16;
             label_vram.Text = "VRAM";
             // 
