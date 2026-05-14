@@ -418,6 +418,7 @@ namespace WhisperNetConsoleDemo
 
                     // Reset timing variables for the new chunk
                     chunkStartTime = DateTime.UtcNow;
+                    lastSpeechTime = DateTime.UtcNow;
                     silenceDetectedRecently = false;
                 }
 
