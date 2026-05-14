@@ -177,6 +177,38 @@ namespace WhisperNetConsoleDemo
                 return false;
                 }
             }
+        private void SaveDebugAudioChunk(MemoryStream stream, string prefix = "chunk")
+        {
+            try
+            {
+                string directory = Path.Combine(Directory.GetCurrentDirectory(), "DebugAudio");
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                string filename = $"{prefix}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.wav";
+                string filepath = Path.Combine(directory, filename);
+
+                // Save current position to restore it for Whisper
+                long originalPosition = stream.Position;
+                stream.Position = 0;
+
+                using (var fileStream = new FileStream(filepath, FileMode.Create, FileAccess.Write))
+                {
+                    stream.CopyTo(fileStream);
+                }
+
+                // Rewind for Whisper
+                stream.Position = originalPosition;
+
+                OnDebugMessage($"Saved debug audio: {filename}");
+            }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"Failed to save debug audio: {ex.Message}");
+            }
+        }
 
         private bool InitializeLLM()
             {
@@ -417,6 +449,10 @@ namespace WhisperNetConsoleDemo
 
                 if (streamToSend != null && streamToSend.Length > 0)
                     {
+                    if (Settings.ShowDebugMessages)
+                    {
+                        SaveDebugAudioChunk(streamToSend, "chunk");
+                    }
                     currentTranscriptionTask = TranscribeAudioChunkAsync(streamToSend, this.IsDictationModeActive);
                     try
                         {
@@ -531,6 +567,10 @@ namespace WhisperNetConsoleDemo
                 OnDebugMessage("WaveSource_RecordingStopped - Starting transcription for the final chunk.");
                 // No need to set activelyProcessingChunk = true here, as this is the end of a session,
                 // and no new DataAvailable events for this waveSource should be coming.
+                if (Settings.ShowDebugMessages)
+                {
+                    SaveDebugAudioChunk(streamToTranscribeThisFinalChunk, "final_chunk");
+                }
                 transcriptionOfThisFinalChunkTask = TranscribeAudioChunkAsync(streamToTranscribeThisFinalChunk, this.IsDictationModeActive);
                 // currentTranscriptionTask = transcriptionOfThisFinalChunkTask; // Update global tracker if needed by Form1's Q
 
