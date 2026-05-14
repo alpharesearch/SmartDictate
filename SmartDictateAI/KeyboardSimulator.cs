@@ -113,7 +113,18 @@ public static class KeyboardSimulator
                 try
                 {
                     backup = Clipboard.GetDataObject();
-                    Clipboard.SetText(textToSend);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        try
+                        {
+                            Clipboard.SetText(textToSend);
+                            break;
+                        }
+                        catch (ExternalException)
+                        {
+                            Thread.Sleep(50); // Wait and retry if locked by another process
+                        }
+                    }
                     Thread.Sleep(60); // Allow clipboard to update
                     SendCtrlVWrapper();
                     Thread.Sleep(60); // Allow target app to process paste

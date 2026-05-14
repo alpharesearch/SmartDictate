@@ -231,7 +231,7 @@ namespace WhisperNetConsoleDemo
                         await Task.Delay(80); // allow clipboard to propagate
                         // Use low-level paste
                         KeyboardSimulator.SendCtrlV();
-                        await Task.Delay(80);
+                        await Task.Delay(150); // Give target app more time to process the paste command
                     }
                     catch (Exception ex)
                     {
@@ -292,12 +292,12 @@ namespace WhisperNetConsoleDemo
                 AppendToDebugOutput("INFO: " + timestampedText + "\n");
             }
 
-            if (isInDictationModeCurrently && !string.IsNullOrWhiteSpace(rawText))
+            if (isInDictationModeCurrently && !string.IsNullOrWhiteSpace(rawTextFilter))
             {
-                AppendToDebugOutput($"Dictation output: {rawText}");
+                AppendToDebugOutput($"Dictation output: {rawTextFilter}");
                 await Task.Delay(50);
                 Action<string> loggerAction = (logMsg) => AppendToDebugOutput($"SIMULATOR: {logMsg}");
-                KeyboardSimulator.SendText(rawText + " ", true, loggerAction); // Add a space after each segment
+                KeyboardSimulator.SendText(rawTextFilter + " ", false, loggerAction); // Add a space after each segment, disable simulator filtering
             }
         }
 

@@ -250,7 +250,10 @@ namespace WhisperNetConsoleDemo
         private void DisposeLLMResourcesInternal() // Synchronous for now, can be made async if LLamaSharp uses IAsyncDisposable heavily
             {
             OnDebugMessage("Disposing LLamaSharp internal resources.");
-            //llmExecutor?.Dispose(); // StatelessExecutor is IDisposable
+            if (llmExecutor is IDisposable disposableExecutor)
+                {
+                disposableExecutor.Dispose();
+                }
             llmContext?.Dispose(); // If we were creating a context separately
             llmModelWeights?.Dispose();
             llmExecutor = null;
@@ -553,8 +556,8 @@ namespace WhisperNetConsoleDemo
                 ws.RecordingStopped -= WaveSource_RecordingStopped; // Unsubscribe from itself
                 try
                     {
-                    ws.Dispose();
-                    OnDebugMessage("WaveSource_RecordingStopped - WaveInEvent sender disposed.");
+                        Task.Run(() => ws.Dispose());
+                        OnDebugMessage("WaveSource_RecordingStopped - WaveInEvent sender disposal deferred to background task.");
                     }
                 catch (Exception ex) { OnDebugMessage($"Err disposing WaveInEvent: {ex.Message}"); }
                 }
