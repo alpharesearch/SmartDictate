@@ -37,5 +37,6 @@ namespace WhisperNetConsoleDemo
         public double DictationMaxChunkDurationSeconds { get; set; } = 3.0;
         public double DictationSilenceThresholdSeconds { get; set; } = 0.75;
         public float VadGainMultiplier { get; set; } = 1.0f;
+        public bool MaintainContextAcrossChunks { get; set; } = true;
         }
     }

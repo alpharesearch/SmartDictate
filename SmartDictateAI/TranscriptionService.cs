@@ -59,7 +59,6 @@ namespace WhisperNetConsoleDemo
         // --- Whisper & App Settings ---
         private string currentWhisperModelPath; // Renamed for clarity
         private WhisperFactory? whisperFactoryInstance = null;
-        private WhisperProcessor? whisperProcessorInstance = null;
         private readonly WaveFormat waveFormatForWhisper = new WaveFormat(16000, 16, 1);
 
         public AppSettings Settings { get; private set; } = new AppSettings();
@@ -146,7 +145,7 @@ namespace WhisperNetConsoleDemo
 
         public async Task<bool> InitializeWhisperAsync()
             {
-            if (whisperProcessorInstance != null)
+            if (whisperFactoryInstance != null)
                 return true;
             if (string.IsNullOrWhiteSpace(currentWhisperModelPath) || !File.Exists(currentWhisperModelPath))
                 {
@@ -158,18 +157,12 @@ namespace WhisperNetConsoleDemo
                 {
                 await DisposeWhisperResourcesAsync();
                 whisperFactoryInstance = WhisperFactory.FromPath(currentWhisperModelPath);
-                whisperProcessorInstance = whisperFactoryInstance.CreateBuilder()
-                    .WithLanguage("auto")
-                    .WithNoContext() // Replaces ConditionOnPreviousText=false
-                    .WithNoSpeechThreshold(0.6f)
-                    .Build();
-                OnDebugMessage("WhisperFactory and WhisperProcessor initialized.");
+                OnDebugMessage("WhisperFactory initialized.");
                 return true;
                 }
             catch (Exception ex)
                 {
                 OnDebugMessage($"FATAL: Could not initialize Whisper.net: {ex.Message}");
-                whisperProcessorInstance = null;
                 whisperFactoryInstance = null;
                 return false;
                 }
@@ -248,14 +241,10 @@ namespace WhisperNetConsoleDemo
 
         public async Task DisposeWhisperResourcesAsync()
             {
-            OnDebugMessage("Disposing WhisperProcessor and WhisperFactory (async).");
-            if (whisperProcessorInstance != null)
-                {
-                await whisperProcessorInstance.DisposeAsync(); // Use Async for processor
-                whisperProcessorInstance = null;
-                }
+            OnDebugMessage("Disposing WhisperFactory (async).");
             whisperFactoryInstance?.Dispose();
             whisperFactoryInstance = null;
+            await Task.CompletedTask;
             }
 
         private void DisposeLLMResourcesInternal() // Synchronous for now, can be made async if LLamaSharp uses IAsyncDisposable heavily
@@ -378,6 +367,12 @@ namespace WhisperNetConsoleDemo
                         }
                         catch (Exception ex) { OnDebugMessage($"VAD processing error: {ex.Message}"); }
                     }
+                }
+                else
+                {
+                    // Fallback: If VAD failed to initialize, assume speech so we don't discard everything
+                    speechInSeg = true;
+                    _hasSpeechInCurrentChunk = true;
                 }
             }
             catch (Exception ex) { OnDebugMessage($"VAD buffer error: {ex.Message}"); }
@@ -580,7 +575,7 @@ namespace WhisperNetConsoleDemo
 
                     // Process even if slightly shorter than normal chunks, but not if effectively empty
                     // Use a very small minimum, e.g., 0.05 seconds of audio data
-                    if (finalActiveStream.Length > (this.waveFormatForWhisper.AverageBytesPerSecond / 20))
+                    if (_hasSpeechInCurrentChunk && finalActiveStream.Length > (this.waveFormatForWhisper.AverageBytesPerSecond / 20))
                         {
                         finalActiveStream.Position = 0; // Rewind the stream to be read from the beginning
                         streamToTranscribeThisFinalChunk = new MemoryStream();
@@ -590,7 +585,7 @@ namespace WhisperNetConsoleDemo
                         }
                     else
                         {
-                        OnDebugMessage("WaveSource_RecordingStopped - Final active stream was too short to process.");
+                        OnDebugMessage("WaveSource_RecordingStopped - Final active stream was too short or contained no speech.");
                         }
                     }
                 catch (Exception ex) { OnDebugMessage($"Err flush/copy final chunk: {ex.Message}"); }
@@ -711,9 +706,9 @@ namespace WhisperNetConsoleDemo
         private async Task TranscribeAudioChunkAsync(Stream audioStream, bool isDictationModeChunk)
             {
             OnDebugMessage($"TranscribeAudioChunkAsync - Stream length: {audioStream.Length}");
-            if (whisperProcessorInstance == null)
+            if (whisperFactoryInstance == null)
                 {
-                OnDebugMessage("ERROR: WhisperProcessor not initialized.");
+                OnDebugMessage("ERROR: WhisperFactory not initialized.");
                 audioStream.Dispose();
                 return;
                 }
@@ -729,7 +724,31 @@ namespace WhisperNetConsoleDemo
                 await Task.Yield();
                 OnDebugMessage("Processing audio chunk with Whisper...");
                 List<string> chunkSegmentsRaw = new List<string>();
-                await foreach (var segment in whisperProcessorInstance.ProcessAsync(audioStream))
+
+                string promptText = string.Empty;
+                if (Settings.MaintainContextAcrossChunks)
+                {
+                    lock (currentSessionTranscribedText)
+                    {
+                        if (currentSessionTranscribedText.Count > 0)
+                        {
+                            // Grab the last few phrases to use as context for the new chunk
+                            promptText = string.Join(" ", currentSessionTranscribedText.TakeLast(4));
+                            if (promptText.Length > 200) promptText = promptText.Substring(promptText.Length - 200);
+                        }
+                    }
+                }
+
+                var builder = whisperFactoryInstance.CreateBuilder()
+                    .WithLanguage("auto")
+                    .WithNoSpeechThreshold(0.6f);
+
+                if (!string.IsNullOrWhiteSpace(promptText))
+                    builder = builder.WithPrompt(promptText);
+
+                using var chunkProcessor = builder.Build();
+
+                await foreach (var segment in chunkProcessor.ProcessAsync(audioStream))
                     {
                     string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
                     string rawText = segment.Text.Trim();
@@ -1037,7 +1056,6 @@ namespace WhisperNetConsoleDemo
                         waveSource?.Dispose();
                         chunkWaveFile?.Dispose();
                         currentAudioChunkStream?.Dispose();
-                        whisperProcessorInstance?.Dispose();
                         whisperFactoryInstance?.Dispose();
 
                         // StatelessExecutor may not implement IDisposable in this LLama build.
