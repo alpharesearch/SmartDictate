@@ -803,10 +803,32 @@ namespace WhisperNetConsoleDemo
             try
                 {
 
-                string fullPrompt =
-                    $"<|im_start|>system \n{systemPrompt}<|im_end|>\n" +
-                    $"<|im_start|>user \n{userPrompt}\n\n{inputText}<|im_end|>\n" +
-                    $"<|im_start|>assistant \n";
+                string templateToUse;
+                List<string> autoAntiPrompts = new List<string>();
+                string modelFileLower = Settings.LocalLLMModelPath.ToLowerInvariant();
+
+                if (modelFileLower.Contains("gemma"))
+                {
+                    templateToUse = "<start_of_turn>user\n{0}\n\n{1}\n\n{2}<end_of_turn>\n<start_of_turn>model\n";
+                    autoAntiPrompts.AddRange(new[] { "<end_of_turn>", "<eos>" });
+                }
+                else if (modelFileLower.Contains("llama-3") || modelFileLower.Contains("llama3"))
+                {
+                    templateToUse = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{0}<|eot_id|><|start_header_id|>user<|end_header_id|>\n{1}\n\n{2}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n";
+                    autoAntiPrompts.AddRange(new[] { "<|eot_id|>", "<|end_of_text|>" });
+                }
+                else if (modelFileLower.Contains("llama-2") || modelFileLower.Contains("llama2"))
+                {
+                    templateToUse = "[INST] <<SYS>>\n{0}\n<</SYS>>\n\n{1}\n\n{2} [/INST]";
+                    autoAntiPrompts.AddRange(new[] { "[/INST]", "<<SYS>>" });
+                }
+                else // Default fallback to ChatML (Qwen, etc)
+                {
+                    templateToUse = "<|im_start|>system\n{0}<|im_end|>\n<|im_start|>user\n{1}\n\n{2}<|im_end|>\n<|im_start|>assistant\n";
+                    autoAntiPrompts.AddRange(new[] { "<|im_end|>", "<|im_start|>" });
+                }
+
+                string fullPrompt = string.Format(templateToUse, systemPrompt, userPrompt, inputText);
                 uint actualSeedToUse;
                 if (Settings.LLMSeed == 0)
                     {
@@ -819,9 +841,13 @@ namespace WhisperNetConsoleDemo
                     actualSeedToUse = (uint)Settings.LLMSeed;
                     OnDebugMessage($"Using LLMSeed from settings: {actualSeedToUse}");
                     }
+
+                // Combine auto-detected anti-prompts with any custom ones in JSON settings
+                var combinedAntiPrompts = autoAntiPrompts.Concat(Settings.LLMAntiPrompts ?? new List<string>()).Distinct().ToList();
+
                 var inferenceParams = new InferenceParams()
                     {
-                    AntiPrompts = Settings.LLMAntiPrompts,
+                    AntiPrompts = combinedAntiPrompts,
                     MaxTokens = Settings.LLMMaxOutputTokens,
                     SamplingPipeline = new LLama.Sampling.DefaultSamplingPipeline() // other pipelines, including custom ones, are possible
                         {
@@ -842,9 +868,8 @@ namespace WhisperNetConsoleDemo
 
                 // Clean up any leaked stop tokens from LLamaSharp's stream
                 string finalResult = outputBuffer.ToString().Trim();
-                var tagsToStrip = Settings.LLMAntiPrompts;
 
-                foreach (var tag in tagsToStrip)
+                foreach (var tag in combinedAntiPrompts)
                 {
                     finalResult = finalResult.Replace(tag, string.Empty).Trim();
                 }
