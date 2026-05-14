@@ -29,7 +29,7 @@ namespace WhisperNetConsoleDemo
         // Dictation mode constants remain
         private const double DICTATION_MAX_CHUNK_DURATION_SECONDS = 3.0;  // Shorter max duration
         private const double DICTATION_SILENCE_THRESHOLD_SECONDS = 0.75; // Much shorter silence (e.g., 0.7 to 1.2 seconds)
-        private const float VAD_GAIN_MULTIPLIER = 5.0f;
+        private const float VAD_GAIN_MULTIPLIER = 1.5f;
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
         public event Action<string>? FullTranscriptionReady;
@@ -83,22 +83,25 @@ namespace WhisperNetConsoleDemo
         private const int VAD_FRAME_BYTES = 640;
 
         public TranscriptionService()
-            {
+        {
             LoadAppSettings();
-            currentWhisperModelPath = Settings.ModelFilePath; // For Whisper
+            currentWhisperModelPath = Settings.ModelFilePath;
 
-            // Initialize WebRtcVad instance with mode from settings
             try
-                {
+            {
                 _vad = new WebRtcVad() { OperatingMode = (OperatingMode)Settings.VadMode };
                 OnDebugMessage($"VAD initialized in mode {Settings.VadMode}.");
-                }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"VAD initialization failed: {ex.Message}");
-                _vad = null;
-                }
             }
+            catch (Exception ex)
+            {
+                // LOG THE FULL EXCEPTION HERE TO SEE THE ERROR
+                OnDebugMessage($"VAD initialization failed: {ex.Message}");
+                if (ex.InnerException != null)
+                    OnDebugMessage($"Inner Error: {ex.InnerException.Message}");
+
+                _vad = null;
+            }
+        }
 
         private void OnDebugMessage(string message) => DebugMessageGenerated?.Invoke(message);
         private void OnSegmentTranscribed(string timestamped, string raw) => SegmentTranscribed?.Invoke(timestamped, raw);
@@ -350,7 +353,19 @@ namespace WhisperNetConsoleDemo
                             amplifiedFrame[i] = bytes[0];
                             amplifiedFrame[i + 1] = bytes[1];
                         }
-                        // -----------------------------
+
+                        // Inside WaveSource_DataAvailable, in the VAD while loop:
+                        short maxSample = 0;
+                        for (int i = 0; i < VAD_FRAME_BYTES; i += 2)
+                        {
+                            short s = BitConverter.ToInt16(rawFrame, i);
+                            if (Math.Abs(s) > maxSample) maxSample = (short)Math.Abs(s);
+                        }
+                        // Log the peak once every second or so to avoid spam
+                        //if (DateTime.UtcNow.Millisecond < 50)
+                        //{
+                        //   OnDebugMessage($"Mic Peak: {maxSample} (Boosted: {maxSample * VAD_GAIN_MULTIPLIER})");
+                        //}
 
                         try
                         {
