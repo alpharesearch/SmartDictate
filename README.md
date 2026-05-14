@@ -1,4 +1,4 @@
-﻿# SmartDictate
+﻿﻿# SmartDictate
 
 ## Getting Started
 
@@ -11,15 +11,22 @@
 3. **Build and run:**  
    Press `F5` or click **Start** to build and launch the application.
 
-## Usage
+## Key Features
 
-1. **Select your microphone** using the "Mic input" button.
-2. **(Optional) Calibrate** using the "Calibration" button for best results.
-3. **Choose models** with the "Model" button.
-4. **Start recording** with the "Start" button.
-5. **View transcriptions** in the main window.
-6. **Copy results** using "Copy Raw" or "Copy LLM" buttons.
-7. **Toggle debug/LLM** with the checkboxes in the top right.
+- **Global Dictation Mode (`CTRL + ALT + D`):** Dictate directly into any application. The app types out your transcribed text at your cursor.
+- **Clipboard Proofreading (`CTRL + ALT + P`):** Send your currently copied text through the local LLM to correct grammar, spelling, and punctuation, then auto-paste it back.
+- **Local LLM Refinement:** Automatically proofreads and refines your dictations using local GGUF models.
+- **Auto-Prompt Formatting:** Automatically detects and applies the correct instruction templates for Qwen, Llama, and Gemma models based on the file name.
+- **Real-time Resource Monitoring:** Live tracking of System RAM and GPU VRAM (Application footprint vs. Total system usage).
+- **Advanced VAD (Voice Activity Detection):** Adjustable sensitivity settings to ignore background noise and handle automatic audio chunking.
+
+## Basic Usage
+
+1. Select your microphone ("Mic input") and local models ("Model").
+2. Set your VAD sensitivity (Low, Medium, High, Max) from the dropdown.
+3. Click "Start" to dictate locally, or use the **Global Hotkeys** mentioned above.
+4. Copy raw or LLM-refined text, or click "Rerun LLM" to re-process the last dictation.
+5. Toggle the "Debug" checkbox to view underlying logs and memory stats.
 
 ## Required Models
 
@@ -30,9 +37,10 @@ You must download and provide your own Whisper and LLM models:
   Example: [ggml-base.bin](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true)
 
 - **LLM GGUF models:**  
-  Download from [bartowski/Qwen2-0.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF)  
-  Example: [Qwen2-0.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF/resolve/main/Qwen2-0.5B-Instruct-Q8_0.gguf?download=true)  
-  File: `qwen2-0_5b-instruct-q8_0.gguf`
+  The app automatically supports and formats prompts for **Qwen**, **Llama**, and **Gemma** models. Examples:
+  - **Qwen 2 (0.5B):** Download qwen2-0_5b-instruct-q8_0.gguf from bartowski/Qwen2-0.5B-Instruct-GGUF
+  - **Llama 3.2 (3B):** Download Llama-3.2-3B-Instruct-Q8_0.gguf from hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF
+  - **Gemma 4 (E2B):** Download gemma-4-E2B-it-Q4_0.gguf from unsloth/gemma-4-E2B-it-GGUF
 
 ## Example appsettings.json
 
