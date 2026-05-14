@@ -539,6 +539,8 @@ namespace WhisperNetConsoleDemo
             this.isRecording = false;       // Set recording state to false immediately
             OnRecordingStateChanged(false); // Notify UI
 
+            await WaitForCurrentTranscriptionToCompleteAsync();
+
             // Capture the stream and writer that were active for the very last segment of audio
             MemoryStream? finalActiveStream = this.currentAudioChunkStream;
             WaveFileWriter? finalFile = this.chunkWaveFile;
@@ -969,6 +971,12 @@ namespace WhisperNetConsoleDemo
 
         public async Task WaitForCurrentTranscriptionToCompleteAsync()
             {
+            while (activelyProcessingChunk)
+                {
+                OnDebugMessage("Waiting for chunk processing pipeline to finish...");
+                await Task.Delay(50);
+                }
+
             if (currentTranscriptionTask != null && !currentTranscriptionTask.IsCompleted)
                 {
                 OnDebugMessage("Waiting for ongoing transcription to complete...");
