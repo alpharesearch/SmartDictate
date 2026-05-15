@@ -39,5 +39,11 @@ namespace WhisperNetConsoleDemo
         public double DictationSilenceThresholdSeconds { get; set; } = 0.75;
         public float VadGainMultiplier { get; set; } = 1.0f;
         public bool MaintainContextAcrossChunks { get; set; } = true;
+
+        // Hotkey Settings
+        public string DictationHotkeyModifiers { get; set; } = "Control, Alt";
+        public string DictationHotkeyKey { get; set; } = "D";
+        public string ProofreadHotkeyModifiers { get; set; } = "Control, Alt";
+        public string ProofreadHotkeyKey { get; set; } = "P";
         }
     }

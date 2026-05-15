@@ -185,27 +185,50 @@ namespace WhisperNetConsoleDemo
 
         private void InitializeHotkeyService()
         {
-            // Example: Register Ctrl+Alt+D
-            if (!globalHotkeyService.Register(GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt, Keys.D))
+            GlobalHotkeyService.FsModifiers dictationMods = GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt;
+            Keys dictationKey = Keys.D;
+            try
             {
-                AppendToDebugOutput("Failed to register global hotkey Ctrl+Alt+D!");
+                dictationMods = (GlobalHotkeyService.FsModifiers)Enum.Parse(typeof(GlobalHotkeyService.FsModifiers), transcriptionService.Settings.DictationHotkeyModifiers, true);
+                dictationKey = (Keys)Enum.Parse(typeof(Keys), transcriptionService.Settings.DictationHotkeyKey, true);
+            }
+            catch (Exception ex)
+            {
+                AppendToDebugOutput($"Failed to parse dictation hotkey settings: {ex.Message}. Using defaults.");
+            }
+
+            if (!globalHotkeyService.Register(dictationMods, dictationKey))
+            {
+                AppendToDebugOutput($"Failed to register global hotkey {transcriptionService.Settings.DictationHotkeyModifiers}+{transcriptionService.Settings.DictationHotkeyKey} for dictation mode!");
             }
             else
             {
-                AppendToDebugOutput("Global hotkey Ctrl+Alt+D registered for dictation mode.");
+                AppendToDebugOutput($"Global hotkey {transcriptionService.Settings.DictationHotkeyModifiers}+{transcriptionService.Settings.DictationHotkeyKey} registered for dictation mode.");
             }
-            // Example: Register Ctrl+Alt+G for clipboard proofreading
+
+            GlobalHotkeyService.FsModifiers proofreadMods = GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt;
+            Keys proofreadKey = Keys.P;
+            try
+            {
+                proofreadMods = (GlobalHotkeyService.FsModifiers)Enum.Parse(typeof(GlobalHotkeyService.FsModifiers), transcriptionService.Settings.ProofreadHotkeyModifiers, true);
+                proofreadKey = (Keys)Enum.Parse(typeof(Keys), transcriptionService.Settings.ProofreadHotkeyKey, true);
+            }
+            catch (Exception ex)
+            {
+                AppendToDebugOutput($"Failed to parse proofread hotkey settings: {ex.Message}. Using defaults.");
+            }
+
             if (!globalHotkeyService.Register(
                     HOTKEY_ID_PROOFREAD,
-                    GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt,
-                    Keys.P,
+                    proofreadMods,
+                    proofreadKey,
                     () => _ = ProofreadClipboardAsyncSafe()))
             {
-                AppendToDebugOutput("Failed to register global hotkey Ctrl+Alt+P for clipboard proofreading!");
+                AppendToDebugOutput($"Failed to register global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} for clipboard proofreading!");
             }
             else
             {
-                AppendToDebugOutput("Global hotkey Ctrl+Alt+P registered for clipboard proofreading.");
+                AppendToDebugOutput($"Global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} registered for clipboard proofreading.");
             }
         }
 
@@ -471,6 +494,10 @@ namespace WhisperNetConsoleDemo
             UpdateButtonStates();
             UpdateStatusIndicator(AppStatus.Idle);
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
+
+            // Update UI Labels with configured hotkeys
+            lblDictateInstruction.Text = $"{transcriptionService.Settings.DictationHotkeyModifiers} + {transcriptionService.Settings.DictationHotkeyKey} to dictate cursor.";
+            lblProofreadInstruction.Text = $"{transcriptionService.Settings.ProofreadHotkeyModifiers} + {transcriptionService.Settings.ProofreadHotkeyKey} to proofreads clipboard locally.";
 
             // Populate VAD sensitivity combobox
             try

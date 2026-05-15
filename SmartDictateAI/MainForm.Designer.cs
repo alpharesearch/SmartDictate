@@ -43,7 +43,7 @@
             chkLLM = new CheckBox();
             lblDictateInstruction = new Label();
             btnLLMcb = new Button();
-            label1 = new Label();
+            lblProofreadInstruction = new Label();
             label_vram = new Label();
             SuspendLayout();
             // 
@@ -194,15 +194,15 @@
             btnLLMcb.UseVisualStyleBackColor = true;
             btnLLMcb.Click += btnLLMcb_Click;
             // 
-            // label1
+            // lblProofreadInstruction
             // 
-            label1.AutoSize = true;
-            label1.Location = new Point(401, 412);
-            label1.Margin = new Padding(1, 0, 1, 0);
-            label1.Name = "label1";
-            label1.Size = new Size(254, 15);
-            label1.TabIndex = 15;
-            label1.Text = "CTRL + ALT + P to proofreads clipboard locally";
+            lblProofreadInstruction.AutoSize = true;
+            lblProofreadInstruction.Location = new Point(401, 412);
+            lblProofreadInstruction.Margin = new Padding(1, 0, 1, 0);
+            lblProofreadInstruction.Name = "lblProofreadInstruction";
+            lblProofreadInstruction.Size = new Size(254, 15);
+            lblProofreadInstruction.TabIndex = 15;
+            lblProofreadInstruction.Text = "CTRL + ALT + P to proofreads clipboard locally";
             // 
             // label_vram
             // 
@@ -221,7 +221,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 441);
             Controls.Add(label_vram);
-            Controls.Add(label1);
+            Controls.Add(lblProofreadInstruction);
             Controls.Add(btnLLMcb);
             Controls.Add(lblDictateInstruction);
             Controls.Add(chkLLM);
@@ -262,7 +262,7 @@
         private CheckBox chkLLM;
         private Label lblDictateInstruction;
         private Button btnLLMcb;
-        private Label label1;
+        private Label lblProofreadInstruction;
         private Label label_vram;
         }
     }
