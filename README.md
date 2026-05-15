@@ -42,16 +42,29 @@ You must download and provide your own Whisper and LLM models:
   - **Llama 3.2 (3B):** Download [Llama-3.2-3B-Instruct-Q8_0.gguf](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf?download=true) from [hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF)
   - **Gemma 4 (E2B):** Download [gemma-4-E2B-it-Q4_0.gguf](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf?download=true) from [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)
 
-## Example appsettings.json
+## Advanced Configuration (`appsettings.json`)
 
-Configure your model paths in `appsettings.json`:
+The application automatically generates an `appsettings.json` file on first run. You can edit this file to customize advanced behavior:
 
+### Customizing Hotkeys
+You can change the global shortcut keys used for dictation and proofreading by modifying the `Modifiers` and `Key` settings:
 ```json
-{
-  "WhisperModelPath": "models/ggml-base.bin",
-  "LlmModelPath": "models/qwen2-0_5b-instruct-q8_0.gguf"
-}
+"DictationHotkeyModifiers": "Control, Alt",
+"DictationHotkeyKey": "D",
+"ProofreadHotkeyModifiers": "Control, Alt",
+"ProofreadHotkeyKey": "P"
 ```
+Valid modifiers include `Control`, `Alt`, `Shift`, or combinations separated by commas. Keys can be any standard key like `D`, `F12`, `NumPad1`.
+
+### LLM Prompts and Formatting
+- **LLMSystemPrompt / LLMUserPrompt**: Customize the persona and instructions for the local LLM. The defaults are set up for strict copy editing.
+- **LLMPromptTemplate**: Leave as `""` to use Auto-Prompt Formatting based on the model name. Set to a custom template string (e.g. `<|im_start|>system\n{0}...`) to manually override.
+- **LLMAntiPrompts**: A list of stop tokens to prevent the LLM from hallucinating conversational filler or running on indefinitely.
+- **LLMContextSize / LLMTemperature / LLMMaxOutputTokens**: Fine-tune the underlying local inference parameters to fit your hardware and selected model.
+
+### Audio & VAD Tweaks
+- **VadGainMultiplier**: Boosts the microphone volume *only* for the Voice Activity Detection analysis (Default: `1.0`). Useful if your microphone is too quiet to trigger the VAD.
+- **Silence Thresholds**: Adjust `NormalSilenceThresholdSeconds` and `DictationSilenceThresholdSeconds` to control how long you can pause before the app considers a sentence finished.
 
 ## Project Structure
 
