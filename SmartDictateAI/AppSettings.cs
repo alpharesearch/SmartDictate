@@ -27,7 +27,7 @@ namespace WhisperNetConsoleDemo
         public float LLMTemperature { get; set; } = 0.6f;
         public int LLMMaxOutputTokens { get; set; } = -1; // Max tokens LLM should generate
         public List<string> LLMAntiPrompts { get; set; } = new List<string> { "<|im_end|>", "<|eot_id|>", "<|end_of_text|>", "<|fim_end|>", "<|im_start|>", "\nuser:", "\nUser:", "<|user|>", "<end_of_turn>", "<eos>" };
-        public string LLMPromptTemplate { get; set; } = "<|im_start|>system \n{0}<|im_end|>\n<|im_start|>user \n{1}\n\n{2}<|im_end|>\n<|im_start|>assistant \n";
+        public string LLMPromptTemplate { get; set; } = ""; // Empty string enables Auto-Prompt Formatting
         public string LLMSystemPrompt { get; set; } = "You are an expert copy editor. Your task is to take the provided transcribed text and refine it into clear, grammatically correct, and professional-sounding prose. Correct any dictation errors, fix punctuation, and improve sentence structure where necessary. Output only the refined text.";
         public string LLMUserPrompt { get; set; } = "Rreview the following dictation for spelling and grammar errors in American style, and enhance its professionalism. Additionally, please use this style of punctuation, like: \"Some text.\" You work through the whole text step by step to ensure accuracy. Correct grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation, now the dictation starts:";
         public bool UseGpu { get; set; } = true; // Default to trying GPU. llama.cpp usually falls back to CPU if GPU init fails.

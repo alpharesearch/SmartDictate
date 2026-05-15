@@ -809,7 +809,12 @@ namespace WhisperNetConsoleDemo
                 List<string> autoAntiPrompts = new List<string>();
                 string modelFileLower = Settings.LocalLLMModelPath.ToLowerInvariant();
 
-                if (modelFileLower.Contains("gemma"))
+                if (!string.IsNullOrWhiteSpace(Settings.LLMPromptTemplate))
+                {
+                    OnDebugMessage("Using manual LLMPromptTemplate override.");
+                    templateToUse = Settings.LLMPromptTemplate;
+                }
+                else if (modelFileLower.Contains("gemma"))
                 {
                     templateToUse = "<start_of_turn>user\n{0}\n\n{1}\n\n{2}<end_of_turn>\n<start_of_turn>model\n";
                     autoAntiPrompts.AddRange(new[] { "<end_of_turn>", "<eos>" });

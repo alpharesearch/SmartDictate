@@ -16,7 +16,7 @@
 - **Global Dictation Mode (`CTRL + ALT + D`):** Dictate directly into any application. The app types out your transcribed text at your cursor.
 - **Clipboard Proofreading (`CTRL + ALT + P`):** Send your currently copied text through the local LLM to correct grammar, spelling, and punctuation, then auto-paste it back.
 - **Local LLM Refinement:** Automatically proofreads and refines your dictations using local GGUF models.
-- **Auto-Prompt Formatting:** Automatically detects and applies the correct instruction templates for Qwen, Llama, and Gemma models based on the file name.
+- **Auto-Prompt Formatting:** Automatically detects and applies the correct instruction templates for Qwen, Llama, and Gemma models based on the file name. You can manually override this behavior by setting `LLMPromptTemplate` in the `appsettings.json` file.
 - **Real-time Resource Monitoring:** Live tracking of System RAM and GPU VRAM (Application footprint vs. Total system usage).
 - **Advanced VAD (Voice Activity Detection):** Adjustable sensitivity settings to ignore background noise and handle automatic audio chunking.
 
