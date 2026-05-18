@@ -81,7 +81,7 @@ namespace WhisperNetConsoleDemo
             }
             catch (Exception ex)
             {
-                AppendToDebugOutput($"Failed to initialize VRAM performance counter: {ex.Message}. Ensure 'System.Diagnostics.PerformanceCounter' NuGet package is installed.");
+                AppendToDebugOutput($"[UI] Failed to initialize VRAM performance counter: {ex.Message}. Ensure 'System.Diagnostics.PerformanceCounter' NuGet package is installed.");
             }
 
             _vramTimer = new System.Windows.Forms.Timer();
@@ -194,16 +194,16 @@ namespace WhisperNetConsoleDemo
             }
             catch (Exception ex)
             {
-                AppendToDebugOutput($"Failed to parse dictation hotkey settings: {ex.Message}. Using defaults.");
+                AppendToDebugOutput($"[Hotkey] Failed to parse dictation hotkey settings: {ex.Message}. Using defaults.");
             }
 
             if (!globalHotkeyService.Register(dictationMods, dictationKey))
             {
-                AppendToDebugOutput($"Failed to register global hotkey {transcriptionService.Settings.DictationHotkeyModifiers}+{transcriptionService.Settings.DictationHotkeyKey} for dictation mode!");
+                AppendToDebugOutput($"[Hotkey] Failed to register global hotkey {transcriptionService.Settings.DictationHotkeyModifiers}+{transcriptionService.Settings.DictationHotkeyKey} for dictation mode!");
             }
             else
             {
-                AppendToDebugOutput($"Global hotkey {transcriptionService.Settings.DictationHotkeyModifiers}+{transcriptionService.Settings.DictationHotkeyKey} registered for dictation mode.");
+                AppendToDebugOutput($"[Hotkey] Global hotkey {transcriptionService.Settings.DictationHotkeyModifiers}+{transcriptionService.Settings.DictationHotkeyKey} registered for dictation mode.");
             }
 
             GlobalHotkeyService.FsModifiers proofreadMods = GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt;
@@ -215,7 +215,7 @@ namespace WhisperNetConsoleDemo
             }
             catch (Exception ex)
             {
-                AppendToDebugOutput($"Failed to parse proofread hotkey settings: {ex.Message}. Using defaults.");
+                AppendToDebugOutput($"[Hotkey] Failed to parse proofread hotkey settings: {ex.Message}. Using defaults.");
             }
 
             if (!globalHotkeyService.Register(
@@ -224,11 +224,11 @@ namespace WhisperNetConsoleDemo
                     proofreadKey,
                     () => _ = ProofreadClipboardAsyncSafe()))
             {
-                AppendToDebugOutput($"Failed to register global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} for clipboard proofreading!");
+                AppendToDebugOutput($"[Hotkey] Failed to register global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} for clipboard proofreading!");
             }
             else
             {
-                AppendToDebugOutput($"Global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} registered for clipboard proofreading.");
+                AppendToDebugOutput($"[Hotkey] Global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} registered for clipboard proofreading.");
             }
         }
 
@@ -240,42 +240,42 @@ namespace WhisperNetConsoleDemo
                 return;
             _lastHotkeyTime = DateTime.UtcNow;
 
-            AppendToDebugOutput("Global Hotkey Pressed!");
+            AppendToDebugOutput("[Hotkey] Global Hotkey Pressed!");
 
             if (!isInDictationModeCurrently) // If not in dictation mode, start it
             {
                 if (isFormRecordingState) // If normal recording is active
                 {
-                    AppendToDebugOutput("Normal recording active. Stop it before starting dictation mode.");
+                    AppendToDebugOutput("[Dictation] Normal recording active. Stop it before starting dictation mode.");
                     MessageBox.Show("Please stop the current recording session before starting dictation mode.", "Info");
                     return;
                 }
-                AppendToDebugOutput("Attempting to start dictation mode...");
+                AppendToDebugOutput("[Dictation] Attempting to start dictation mode...");
                 UpdateStatusIndicator(AppStatus.Listening, "Dictation Starting...");
                 isInDictationModeCurrently = true; // Optimistic
                 bool success = await transcriptionService.StartDictationModeAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
                 if (success)
                 {
-                    AppendToDebugOutput("Dictation mode started.");
+                    AppendToDebugOutput("[Dictation] Dictation mode started.");
                     UpdateStatusIndicator(AppStatus.Listening, "Dictating...");
                     // Optionally minimize or hide your main form
                     // this.WindowState = FormWindowState.Minimized;
                 }
                 else
                 {
-                    AppendToDebugOutput("Failed to start dictation mode.");
+                    AppendToDebugOutput("[Dictation] Failed to start dictation mode.");
                     UpdateStatusIndicator(AppStatus.Error, "Dictation start failed");
                     isInDictationModeCurrently = false; // Revert
                 }
             }
             else // If already in dictation mode, stop it
             {
-                AppendToDebugOutput("Attempting to stop dictation mode...");
+                AppendToDebugOutput("[Dictation] Attempting to stop dictation mode...");
                 UpdateStatusIndicator(AppStatus.Processing, "Dictation Stopping...");
                 await transcriptionService.StopDictationModeAsync();
                 isInDictationModeCurrently = false;
                 UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
-                AppendToDebugOutput("Dictation mode stopped.");
+                AppendToDebugOutput("[Dictation] Dictation mode stopped.");
                 // Optionally restore your main form if it was minimized
                 // if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
                 // this.Activate();
@@ -304,7 +304,7 @@ namespace WhisperNetConsoleDemo
                 }
                 catch (Exception ex)
                 {
-                    AppendToDebugOutput($"Warning: could not read existing clipboard: {ex.Message}");
+                    AppendToDebugOutput($"[Clipboard] Warning: could not read existing clipboard: {ex.Message}");
                     backupData = null;
                     backupText = null;
                 }
@@ -328,7 +328,7 @@ namespace WhisperNetConsoleDemo
                     }
                     catch (Exception ex)
                     {
-                        AppendToDebugOutput($"Clipboard read error after copy attempt {attempt + 1}: {ex.Message}");
+                        AppendToDebugOutput($"[Clipboard] Clipboard read error after copy attempt {attempt + 1}: {ex.Message}");
                         clip = string.Empty;
                     }
 
@@ -342,19 +342,19 @@ namespace WhisperNetConsoleDemo
 
                 if (!copySucceeded)
                 {
-                    AppendToDebugOutput("Clipboard proofreading: nothing selected or copy did not change clipboard.");
+                    AppendToDebugOutput("[Clipboard] Clipboard proofreading: nothing selected or copy did not change clipboard.");
                     return;
                 }
 
-                AppendToDebugOutput("Clipboard proofreading selection: " + clip);
+                AppendToDebugOutput("[Clipboard] Clipboard proofreading selection: " + clip);
 
                 if (isInDictationModeCurrently)
                 {
-                    AppendToDebugOutput("Clipboard proofreading skipped: dictation active.");
+                    AppendToDebugOutput("[Clipboard] Clipboard proofreading skipped: dictation active.");
                     return;
                 }
 
-                AppendToDebugOutput("Clipboard proofreading: sending text to LLM...");
+                AppendToDebugOutput("[Clipboard] Clipboard proofreading: sending text to LLM...");
                 var refined = await transcriptionService.ProcessTextWithLLMAsync(clip);
 
                 if (!string.IsNullOrWhiteSpace(refined))
@@ -369,13 +369,13 @@ namespace WhisperNetConsoleDemo
                     }
                     catch (Exception ex)
                     {
-                        AppendToDebugOutput("Clipboard paste error: " + ex.Message);
+                        AppendToDebugOutput("[Clipboard] Clipboard paste error: " + ex.Message);
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppendToDebugOutput("Clipboard proofreading error: " + ex.Message);
+                AppendToDebugOutput("[Clipboard] Clipboard proofreading error: " + ex.Message);
             }
             finally
             {
@@ -389,12 +389,12 @@ namespace WhisperNetConsoleDemo
                     }
                     catch (Exception ex)
                     {
-                        AppendToDebugOutput("Warning: could not restore original clipboard: " + ex.Message);
+                        AppendToDebugOutput("[Clipboard] Warning: could not restore original clipboard: " + ex.Message);
                     }
                 }
 
                 if (restored)
-                    AppendToDebugOutput("Clipboard proofreading: original clipboard restored.");
+                    AppendToDebugOutput("[Clipboard] Clipboard proofreading: original clipboard restored.");
                 _isProofreadingClipboard = false;
             }
 
@@ -423,14 +423,14 @@ namespace WhisperNetConsoleDemo
             if (transcriptionService.Settings.ShowRealtimeTranscription)
             {
                 if (!string.IsNullOrWhiteSpace(rawTextFilter)) AppendToTranscriptionOutput(rawTextFilter, false);
-                AppendToDebugOutput("INFO: " + timestampedText + "\n");
+                AppendToDebugOutput("[UI] INFO: " + timestampedText + "\n");
             }
 
             if (isInDictationModeCurrently && !string.IsNullOrWhiteSpace(rawTextFilter))
             {
-                AppendToDebugOutput($"Dictation output: {rawTextFilter}");
+                AppendToDebugOutput($"[Dictation] Dictation output: {rawTextFilter}");
                 await Task.Delay(50);
-                Action<string> loggerAction = (logMsg) => AppendToDebugOutput($"SIMULATOR: {logMsg}");
+                Action<string> loggerAction = (logMsg) => AppendToDebugOutput($"[UI] SIMULATOR: {logMsg}");
                 KeyboardSimulator.SendText(rawTextFilter + " ", false, loggerAction); // Add a space after each segment, disable simulator filtering
             }
         }
@@ -510,7 +510,7 @@ namespace WhisperNetConsoleDemo
             }
             catch (Exception ex)
             {
-                AppendToDebugOutput("Error populating VAD combo: " + ex.Message);
+                AppendToDebugOutput("[VAD] Error populating VAD combo: " + ex.Message);
             }
         }
 
@@ -520,7 +520,7 @@ namespace WhisperNetConsoleDemo
             if (!_isClosing && isFormRecordingState && transcriptionService != null)
             {
                 e.Cancel = true; // Prevent closing immediately while recording
-                AppendToDebugOutput("Form closing during recording, stopping service...");
+                AppendToDebugOutput("[Audio] Form closing during recording, stopping service...");
                 btnStartStop.Enabled = false; // Prevent further interaction
                 await transcriptionService.StopRecording();
                 _isClosing = true;
@@ -530,7 +530,7 @@ namespace WhisperNetConsoleDemo
 
             if (transcriptionService != null)
             {
-                AppendToDebugOutput("Form1_FormClosing: Unsubscribing from TranscriptionService events.");
+                AppendToDebugOutput("[UI] Form1_FormClosing: Unsubscribing from TranscriptionService events.");
                 transcriptionService.DebugMessageGenerated -= OnDebugMessageReceived;
                 transcriptionService.SegmentTranscribed -= OnServiceSegmentTranscribedForDictation;
                 transcriptionService.FullTranscriptionReady -= OnFullTranscriptionCompleted;
@@ -715,7 +715,7 @@ namespace WhisperNetConsoleDemo
                 // Enable VAD combobox
                 cmbVadSensitivity.Enabled = true;
                 btnMicInput.Enabled = true;
-                AppendToDebugOutput($"Populated mics. Current in settings: {transcriptionService.Settings.SelectedMicrophoneDevice}");
+                AppendToDebugOutput($"[Audio] Populated mics. Current in settings: {transcriptionService.Settings.SelectedMicrophoneDevice}");
             }
         }
 
@@ -733,7 +733,7 @@ namespace WhisperNetConsoleDemo
                 }
 
                 textBoxOutput.Clear(); // Clear previous full transcription
-                AppendToDebugOutput("Start recording button clicked.");
+                AppendToDebugOutput("[Audio] Start recording button clicked.");
                 UpdateStatusIndicator(AppStatus.Processing, "Starting...");
                 bool success = await transcriptionService.StartRecordingAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
                 if (!success)
@@ -746,7 +746,7 @@ namespace WhisperNetConsoleDemo
             }
             else
             {
-                AppendToDebugOutput("Stop recording button clicked.");
+                AppendToDebugOutput("[Audio] Stop recording button clicked.");
                 UpdateStatusIndicator(AppStatus.Processing, "Stopping..."); // Indicate stopping is a form of processing
                 Task stopTask = transcriptionService.StopRecording();
                 await stopTask;
@@ -780,31 +780,31 @@ namespace WhisperNetConsoleDemo
 
                     if (whisperChanged)
                     {
-                        AppendToDebugOutput($"New Whisper model selected: {modelForm.SelectedWhisperModelPath}");
+                        AppendToDebugOutput($"[Settings] New Whisper model selected: {modelForm.SelectedWhisperModelPath}");
                         await transcriptionService.ChangeModelPathAsync(modelForm.SelectedWhisperModelPath);
                         // ChangeModelPathAsync in service should update Settings and save
                     }
 
                     if (llmChanged)
                     {
-                        AppendToDebugOutput($"New LLM model selected: {modelForm.SelectedLLMModelPath}");
+                        AppendToDebugOutput($"[Settings] New LLM model selected: {modelForm.SelectedLLMModelPath}");
                         await transcriptionService.ChangeLLMModelPathAsync(modelForm.SelectedLLMModelPath);
                         // ChangeLLMModelPathAsync in service should update Settings and save
                     }
 
                     if (whisperChanged || llmChanged)
                     {
-                        AppendToDebugOutput("Model selections updated.");
+                        AppendToDebugOutput("[Settings] Model selections updated.");
                         // SettingsUpdated event from transcriptionService should refresh UI via OnServiceSettingsUpdated
                     }
                     else
                     {
-                        AppendToDebugOutput("Model selections unchanged.");
+                        AppendToDebugOutput("[Settings] Model selections unchanged.");
                     }
                 }
                 else
                 {
-                    AppendToDebugOutput("Model selection cancelled.");
+                    AppendToDebugOutput("[Settings] Model selection cancelled.");
                 }
             }
         }
@@ -910,16 +910,16 @@ namespace WhisperNetConsoleDemo
                 try
                 {
                     Clipboard.SetText(transcriptionService.LastRawFilteredText);
-                    AppendToDebugOutput("Raw text copied to clipboard.");
+                    AppendToDebugOutput("[Clipboard] Raw text copied to clipboard.");
                 }
                 catch (Exception ex)
                 {
-                    AppendToDebugOutput($"Error copying raw text: {ex.Message}");
+                    AppendToDebugOutput($"[Clipboard] Error copying raw text: {ex.Message}");
                 }
             }
             else
             {
-                AppendToDebugOutput("No raw text available to copy.");
+                AppendToDebugOutput("[Clipboard] No raw text available to copy.");
             }
         }
 
@@ -931,16 +931,16 @@ namespace WhisperNetConsoleDemo
                 try
                 {
                     Clipboard.SetText(transcriptionService.LastLLMProcessedText);
-                    AppendToDebugOutput("LLM refined text copied to clipboard.");
+                    AppendToDebugOutput("[Clipboard] LLM refined text copied to clipboard.");
                 }
                 catch (Exception ex)
                 {
-                    AppendToDebugOutput($"Error copying LLM text: {ex.Message}");
+                    AppendToDebugOutput($"[Clipboard] Error copying LLM text: {ex.Message}");
                 }
             }
             else
             {
-                AppendToDebugOutput("No LLM refined text available to copy (LLM might be off or produced no output).");
+                AppendToDebugOutput("[Clipboard] No LLM refined text available to copy (LLM might be off or produced no output).");
             }
         }
 
@@ -971,7 +971,7 @@ namespace WhisperNetConsoleDemo
             int idx = cmbVadSensitivity.SelectedIndex;
             if (idx < 0 || idx > 3) idx = 3;
             transcriptionService.SetVadMode(idx);
-            AppendToDebugOutput($"VAD sensitivity set to {idx}.");
+            AppendToDebugOutput($"[VAD] VAD sensitivity set to {idx}.");
         }
     }
 }
