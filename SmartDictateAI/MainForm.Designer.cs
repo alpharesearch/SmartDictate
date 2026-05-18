@@ -190,12 +190,12 @@
             // lblDictateInstruction
             // 
             lblDictateInstruction.AutoSize = true;
-            lblDictateInstruction.Location = new Point(184, 25);
+            lblDictateInstruction.Location = new Point(184, 19);
             lblDictateInstruction.Margin = new Padding(1, 0, 1, 0);
             lblDictateInstruction.Name = "lblDictateInstruction";
-            lblDictateInstruction.Size = new Size(183, 15);
+            lblDictateInstruction.Size = new Size(96, 30);
             lblDictateInstruction.TabIndex = 13;
-            lblDictateInstruction.Text = "CTRL + ALT + D to dictate cursor.";
+            lblDictateInstruction.Text = "CTRL + ALT + D\r\nto dictate cursor.";
             // 
             // btnLLMcb
             // 
@@ -211,12 +211,12 @@
             // lblProofreadInstruction
             // 
             lblProofreadInstruction.AutoSize = true;
-            lblProofreadInstruction.Location = new Point(395, 25);
+            lblProofreadInstruction.Location = new Point(282, 19);
             lblProofreadInstruction.Margin = new Padding(1, 0, 1, 0);
             lblProofreadInstruction.Name = "lblProofreadInstruction";
-            lblProofreadInstruction.Size = new Size(254, 15);
+            lblProofreadInstruction.Size = new Size(168, 30);
             lblProofreadInstruction.TabIndex = 15;
-            lblProofreadInstruction.Text = "CTRL + ALT + P to proofreads clipboard locally";
+            lblProofreadInstruction.Text = "CTRL + ALT + P\r\nto proofreads clipboard locally";
             // 
             // label_vram
             // 

@@ -509,8 +509,8 @@ namespace WhisperNetConsoleDemo
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
 
             // Update UI Labels with configured hotkeys
-            lblDictateInstruction.Text = $"{transcriptionService.Settings.DictationHotkeyModifiers} + {transcriptionService.Settings.DictationHotkeyKey} to dictate cursor.";
-            lblProofreadInstruction.Text = $"{transcriptionService.Settings.ProofreadHotkeyModifiers} + {transcriptionService.Settings.ProofreadHotkeyKey} to proofreads clipboard locally.";
+            lblDictateInstruction.Text = $"{transcriptionService.Settings.DictationHotkeyModifiers} + {transcriptionService.Settings.DictationHotkeyKey} \r\nto dictate cursor.";
+            lblProofreadInstruction.Text = $"{transcriptionService.Settings.ProofreadHotkeyModifiers} + {transcriptionService.Settings.ProofreadHotkeyKey} \r\nto proofreads clipboard locally.";
 
             // Populate VAD sensitivity combobox
             try
