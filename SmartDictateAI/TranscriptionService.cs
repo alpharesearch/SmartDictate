@@ -48,7 +48,8 @@ namespace WhisperNetConsoleDemo
         public string LastRawFilteredText { get; private set; } = string.Empty;
         public string LastLLMProcessedText { get; set; } = string.Empty;
         public bool WasLastProcessingWithLLM { get; private set; } = false; // To know if LLM text is valid
-
+        private bool _loggedSilenceProcessThisChunk = false;
+        private bool _loggedMaxDurationThisChunk = false;
         // --- LLamaSharp Specific ---
         private LLamaWeights? llmModelWeights = null;
         private LLamaContext? llmContext = null;
@@ -157,7 +158,15 @@ namespace WhisperNetConsoleDemo
                 {
                 await DisposeWhisperResourcesAsync();
                 whisperFactoryInstance = WhisperFactory.FromPath(currentWhisperModelPath);
-                OnDebugMessage("WhisperFactory initialized.");
+                OnDebugMessage($"[Whisper] Factory ready | model={Path.GetFileName(currentWhisperModelPath)} | Arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+                var assemblies = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name?.ToLowerInvariant());
+
+                string backend = assemblies.Any(a => a.Contains("vulkan"))
+                    ? "Vulkan"
+                    : "CPU";
+
+                OnDebugMessage($"[Whisper] Backend={backend} | model={Path.GetFileName(currentWhisperModelPath)}");
+                OnDebugMessage("[Whisper] WhisperFactory initialized.");
                 return true;
                 }
             catch (Exception ex)
@@ -227,13 +236,13 @@ namespace WhisperNetConsoleDemo
                 // Let's create the executor directly with weights and model params.
                 llmExecutor = new StatelessExecutor(llmModelWeights, parameters);
 
-
-                OnDebugMessage("LLamaSharp initialized successfully.");
+                OnDebugMessage($"[LLM] Backend request | UseGpu={Settings.UseGpu} | GpuLayerCount={parameters.GpuLayerCount} | Arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+                OnDebugMessage("[LLM] Initialized successfully.");
                 return true;
                 }
             catch (Exception ex)
                 {
-                OnDebugMessage($"FATAL: Could not initialize LLamaSharp: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                OnDebugMessage($"FATAL: [LLM] Could not initialize LLamaSharp: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 DisposeLLMResourcesInternal(); // Ensure cleanup on failure
                 return false;
                 }
@@ -246,6 +255,23 @@ namespace WhisperNetConsoleDemo
             whisperFactoryInstance = null;
             await Task.CompletedTask;
             }
+        private void CleanupDebugAudioFolder()
+        {
+            try
+            {
+                string debugDir = Path.Combine(Directory.GetCurrentDirectory(), "DebugAudio");
+
+                if (Directory.Exists(debugDir))
+                {
+                    Directory.Delete(debugDir, recursive: true);
+                    OnDebugMessage("DebugAudio folder deleted on exit.");
+                }
+            }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"Failed to delete DebugAudio folder: {ex.Message}");
+            }
+        }
 
         private void DisposeLLMResourcesInternal() // Synchronous for now, can be made async if LLamaSharp uses IAsyncDisposable heavily
             {
@@ -287,7 +313,8 @@ namespace WhisperNetConsoleDemo
                 {
                 // ignore disposal exceptions
                 }
-
+            _loggedSilenceProcessThisChunk = false;
+            _loggedMaxDurationThisChunk = false;
             currentAudioChunkStream = new MemoryStream();
             chunkWaveFile = new WaveFileWriter(currentAudioChunkStream, waveFormatForWhisper);
             chunkStartTime = DateTime.UtcNow;
@@ -407,7 +434,11 @@ namespace WhisperNetConsoleDemo
                 {
                     if (_hasSpeechInCurrentChunk)
                     {
-                        OnDebugMessage($"Max chunk duration ({currentMaxChunkDurationSeconds}s) reached.");
+                        if (!_loggedMaxDurationThisChunk)
+                        {
+                            OnDebugMessage($"Max chunk duration ({currentMaxChunkDurationSeconds}s) reached.");
+                            _loggedMaxDurationThisChunk = true;
+                        }
                         process = true;
                     }
                     else
@@ -417,7 +448,11 @@ namespace WhisperNetConsoleDemo
                 }
                 else if (silenceDetectedRecently)
                 {
-                    OnDebugMessage("Silence detected after speech, processing chunk.");
+                    if (!_loggedSilenceProcessThisChunk)
+                    {
+                        OnDebugMessage("Silence detected after speech, processing chunk.");
+                        _loggedSilenceProcessThisChunk = true;
+                    }
                     process = true;
                 }
                 else if (!_hasSpeechInCurrentChunk && chunkDur >= TimeSpan.FromSeconds(currentSilenceThresholdSeconds))
@@ -455,6 +490,8 @@ namespace WhisperNetConsoleDemo
                     lastSpeechTime = DateTime.UtcNow;
                     silenceDetectedRecently = false;
                     _hasSpeechInCurrentChunk = false;
+                    _loggedSilenceProcessThisChunk = false;
+                    _loggedMaxDurationThisChunk = false;
                 }
 
                 if (process)
@@ -728,6 +765,12 @@ namespace WhisperNetConsoleDemo
                 {
                 await Task.Yield();
                 OnDebugMessage("Processing audio chunk with Whisper...");
+                // --- PERF: Whisper timing / RTF ---
+                double audioSeconds = (double)audioStream.Length / waveFormatForWhisper.AverageBytesPerSecond;
+                var swWhisper = System.Diagnostics.Stopwatch.StartNew();
+                int segCount = 0;
+
+                OnDebugMessage($"[Whisper] Begin | audio={audioSeconds:F2}s | streamBytes={audioStream.Length}");
                 List<string> chunkSegmentsRaw = new List<string>();
 
                 string promptText = string.Empty;
@@ -754,19 +797,23 @@ namespace WhisperNetConsoleDemo
                 using var chunkProcessor = builder.Build();
 
                 await foreach (var segment in chunkProcessor.ProcessAsync(audioStream))
-                    {
+                {
                     string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
                     string rawText = segment.Text.Trim();
                     // Normal mode: accumulate for full transcription display
                     OnSegmentTranscribed(timestampedText, rawText); // For real-time UI update
                     chunkSegmentsRaw.Add(rawText);
-                    }
+                    segCount++;
+                }
                 if (chunkSegmentsRaw.Count > 0)
                     lock (currentSessionTranscribedText)
                         {
                         currentSessionTranscribedText.AddRange(chunkSegmentsRaw);
                         }
 
+                swWhisper.Stop();
+                double rtf = swWhisper.Elapsed.TotalSeconds / Math.Max(audioSeconds, 0.01);
+                OnDebugMessage($"[Whisper] Done | proc={swWhisper.Elapsed.TotalSeconds:F2}s | RTF={rtf:F2}x | segs={segCount} | {(rtf <= 1.0 ? "✅ realtime+" : "⚠️ slower")}");
                 }
             catch (Exception ex)
                 {
@@ -868,10 +915,32 @@ namespace WhisperNetConsoleDemo
                 OnDebugMessage("\nfullPrompt " + fullPrompt);
                 OnDebugMessage("\ninferenceParams" + inferenceParams.ToString());
 
+
+                var swLlm = System.Diagnostics.Stopwatch.StartNew();
+                int tokCount = 0;
+
+                OnDebugMessage($"[LLM] Begin | ctx={Settings.LLMContextSize} | maxOut={Settings.LLMMaxOutputTokens} | gpuLayers={(Settings.UseGpu ? 99 : 0)}");
+
                 await foreach (var textPart in llmExecutor.InferAsync(fullPrompt, inferenceParams))
                 {
                     outputBuffer.Append(textPart);
+                    tokCount++;
+
+                    // Optional: low-noise progress ping
+                    if (tokCount % 32 == 0)
+                    {
+                        double liveTps = tokCount / Math.Max(swLlm.Elapsed.TotalSeconds, 0.001);
+                        OnDebugMessage($"[LLM] ... {tokCount} tokens | {liveTps:F1} tok/s");
+                    }
                 }
+
+                swLlm.Stop();
+
+                var outText = outputBuffer.ToString();
+                double tps = tokCount / Math.Max(swLlm.Elapsed.TotalSeconds, 0.001);
+                OnDebugMessage($"[LLM] Done | streamParts={tokCount} | sec={swLlm.Elapsed.TotalSeconds:F2} | {tps:F1} tok/s-ish");
+                double cps = outText.Length / Math.Max(swLlm.Elapsed.TotalSeconds, 0.001);
+                OnDebugMessage($"[LLM] Done | outChars={outText.Length} | sec={swLlm.Elapsed.TotalSeconds:F2} | {cps:F0} chars/s");
 
                 // Clean up any leaked stop tokens from LLamaSharp's stream
                 string finalResult = outputBuffer.ToString().Trim();
@@ -941,8 +1010,7 @@ namespace WhisperNetConsoleDemo
                 {
                 OnDebugMessage("LLM init failed, proceeding without LLM for this session if StartRecording is called again.");
                 }
-            OnDebugMessage("LLM initialization failed. The current session will not use LLM, but recording can proceed without it if started again.");
-
+            
             OnDebugMessage($"Starting recording with mic [{deviceNumber}]...");
             lock (currentSessionTranscribedText)
             {
@@ -976,11 +1044,17 @@ namespace WhisperNetConsoleDemo
 
         public async Task WaitForCurrentTranscriptionToCompleteAsync()
             {
+            var lastWaitLog = DateTime.MinValue;
+
             while (activelyProcessingChunk)
+            {
+                if ((DateTime.UtcNow - lastWaitLog) > TimeSpan.FromSeconds(2))
                 {
-                OnDebugMessage("Waiting for chunk processing pipeline to finish...");
-                await Task.Delay(50);
+                    OnDebugMessage("Waiting for chunk processing pipeline to finish...");
+                    lastWaitLog = DateTime.UtcNow;
                 }
+                await Task.Delay(50);
+            }
 
             if (currentTranscriptionTask != null && !currentTranscriptionTask.IsCompleted)
                 {
@@ -1112,7 +1186,7 @@ namespace WhisperNetConsoleDemo
 
                         // Dispose VAD
                         try { _vad?.Dispose(); } catch { }
-
+                        CleanupDebugAudioFolder();
                         llmExecutor = null;
                         llmContext = null;
                         llmModelWeights = null;
@@ -1174,3 +1248,4 @@ namespace WhisperNetConsoleDemo
             }
         }
     }
+
