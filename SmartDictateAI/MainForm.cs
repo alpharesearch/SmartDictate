@@ -525,6 +525,9 @@ namespace WhisperNetConsoleDemo
             }
 
             InitializeVramMonitor();
+
+            // Fire and forget model preloading in the background
+            _ = transcriptionService.PreloadModelsAsync();
         }
 
         private bool _isClosing = false;

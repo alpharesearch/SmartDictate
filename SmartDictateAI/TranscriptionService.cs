@@ -302,6 +302,28 @@ namespace WhisperNetConsoleDemo
             await Task.CompletedTask; // Keep it awaitable if needed elsewhere
             }
 
+        public async Task PreloadModelsAsync()
+        {
+            OnDebugMessage("[App] Preloading models in background...");
+            try
+            {
+                var whisperTask = InitializeWhisperAsync();
+                var llmTask = Task.Run(() =>
+                {
+                    if (Settings.ProcessWithLLM)
+                    {
+                        InitializeLLM();
+                    }
+                });
+                await Task.WhenAll(whisperTask, llmTask);
+                OnDebugMessage("[App] Background model preloading completed.");
+            }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"[App] Background model preloading failed: {ex.Message}");
+            }
+        }
+
 
         private void StartNewChunk()
             {
