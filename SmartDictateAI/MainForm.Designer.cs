@@ -132,7 +132,7 @@
             // lblStatusIndicator
             // 
             lblStatusIndicator.AutoSize = true;
-            lblStatusIndicator.Location = new Point(156, 24);
+            lblStatusIndicator.Location = new Point(7, 60);
             lblStatusIndicator.Margin = new Padding(1, 0, 1, 0);
             lblStatusIndicator.Name = "lblStatusIndicator";
             lblStatusIndicator.Size = new Size(26, 15);
@@ -238,7 +238,6 @@
             groupBox1.Controls.Add(btnMicInput);
             groupBox1.Controls.Add(lblCalibrationIndicator);
             groupBox1.Controls.Add(chkLLM);
-            groupBox1.Controls.Add(lblStatusIndicator);
             groupBox1.Controls.Add(chkDebug);
             groupBox1.Location = new Point(7, 12);
             groupBox1.Name = "groupBox1";
@@ -281,8 +280,9 @@
             ClientSize = new Size(798, 606);
             Controls.Add(groupBox3);
             Controls.Add(groupBox2);
-            Controls.Add(groupBox1);
             Controls.Add(textBoxOutput);
+            Controls.Add(lblStatusIndicator);
+            Controls.Add(groupBox1);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(1);
             Name = "MainForm";
