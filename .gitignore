@@ -35,6 +35,7 @@ ConsoleApp1/obj/
 
 # User-specific files
 *.DotSettings.user
+Models/
 
 # Other common ignores
 *.log
