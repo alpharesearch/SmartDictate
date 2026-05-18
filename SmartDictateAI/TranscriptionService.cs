@@ -45,9 +45,9 @@ namespace WhisperNetConsoleDemo
         private bool activelyProcessingChunk = false;
         private Task? currentTranscriptionTask = null;
         private readonly List<string> currentSessionTranscribedText = new List<string>();
-        public string LastRawFilteredText { get; private set; } = string.Empty;
+        public string LastRawFilteredText { get; set; } = string.Empty;
         public string LastLLMProcessedText { get; set; } = string.Empty;
-        public bool WasLastProcessingWithLLM { get; private set; } = false; // To know if LLM text is valid
+        public bool WasLastProcessingWithLLM { get; set; } = false; // To know if LLM text is valid
         private bool _loggedSilenceProcessThisChunk = false;
         private bool _loggedMaxDurationThisChunk = false;
         // --- LLamaSharp Specific ---

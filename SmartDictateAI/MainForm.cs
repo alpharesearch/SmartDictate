@@ -64,6 +64,46 @@ namespace WhisperNetConsoleDemo
             InitializeHotkeyService();
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;
+            SetupContextMenus();
+            }
+
+        private void SetupContextMenus()
+            {
+            // Output TextBox Context Menu
+            var outputMenu = new ContextMenuStrip();
+            outputMenu.Items.Add("Cut", null, (s, e) => textBoxOutput.Cut());
+            outputMenu.Items.Add("Copy", null, (s, e) => textBoxOutput.Copy());
+            outputMenu.Items.Add("Paste", null, (s, e) => textBoxOutput.Paste());
+            outputMenu.Items.Add("Delete", null, (s, e) => textBoxOutput.SelectedText = "");
+            outputMenu.Items.Add(new ToolStripSeparator());
+            outputMenu.Items.Add("Select All", null, (s, e) => textBoxOutput.SelectAll());
+            outputMenu.Items.Add(new ToolStripSeparator());
+            outputMenu.Items.Add("Clear All", null, (s, e) => textBoxOutput.Clear());
+
+            outputMenu.Opening += (s, e) =>
+            {
+                outputMenu.Items[0].Enabled = textBoxOutput.SelectionLength > 0; // Cut
+                outputMenu.Items[1].Enabled = textBoxOutput.SelectionLength > 0; // Copy
+                outputMenu.Items[2].Enabled = Clipboard.ContainsText();          // Paste
+                outputMenu.Items[3].Enabled = textBoxOutput.SelectionLength > 0; // Delete
+            };
+            
+            textBoxOutput.ContextMenuStrip = outputMenu;
+
+            // Debug TextBox Context Menu (often read-only, so mainly copy/select all/clear)
+            var debugMenu = new ContextMenuStrip();
+            debugMenu.Items.Add("Copy", null, (s, e) => textBoxDebug.Copy());
+            debugMenu.Items.Add(new ToolStripSeparator());
+            debugMenu.Items.Add("Select All", null, (s, e) => textBoxDebug.SelectAll());
+            debugMenu.Items.Add(new ToolStripSeparator());
+            debugMenu.Items.Add("Clear All", null, (s, e) => textBoxDebug.Clear());
+
+            debugMenu.Opening += (s, e) =>
+            {
+                debugMenu.Items[0].Enabled = textBoxDebug.SelectionLength > 0; // Copy
+            };
+
+            textBoxDebug.ContextMenuStrip = debugMenu;
             }
 
         private void InitializeVramMonitor()
@@ -369,8 +409,19 @@ namespace WhisperNetConsoleDemo
                 AppendToDebugOutput("[Clipboard] Clipboard proofreading: sending text to LLM...");
                 var refined = await transcriptionService.ProcessTextWithLLMAsync(clip);
 
+                // Update transcription service state so the copy buttons work
+                transcriptionService.LastRawFilteredText = clip;
+                transcriptionService.LastLLMProcessedText = refined;
+                transcriptionService.WasLastProcessingWithLLM = !string.IsNullOrWhiteSpace(refined);
+
+                // Append output to the UI like Dictation does
+                AppendToTranscriptionOutput("", true);
+                AppendToTranscriptionOutput("--- Clipboard Proofreading ---", true);
+                AppendToTranscriptionOutput("Original: " + clip, true);
+                
                 if (!string.IsNullOrWhiteSpace(refined))
                     {
+                    AppendToTranscriptionOutput("LLM Refined: " + refined, true);
                     try
                         {
                         Clipboard.SetText(refined);
@@ -384,6 +435,14 @@ namespace WhisperNetConsoleDemo
                         AppendToDebugOutput("[Clipboard] Clipboard paste error: " + ex.Message);
                         }
                     }
+                else 
+                    {
+                    AppendToTranscriptionOutput("LLM Refined: [No Output]", true);
+                    }
+                AppendToTranscriptionOutput("------------------------------", true);
+
+                // Re-evaluate button states to enable Copy buttons
+                UpdateButtonStates();
                 }
             catch (Exception ex)
                 {
