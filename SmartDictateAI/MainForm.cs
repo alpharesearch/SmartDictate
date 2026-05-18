@@ -64,30 +64,41 @@ namespace WhisperNetConsoleDemo
             InitializeHotkeyService();
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;
-
-            InitializeVramMonitor();
         }
 
         private void InitializeVramMonitor()
         {
-            try
+            Task.Run(() =>
             {
-                var category = new PerformanceCounterCategory("GPU Adapter Memory");
-                var instances = category.GetInstanceNames();
-                foreach (var instance in instances)
+                try
                 {
-                    _vramCounters.Add(new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", instance));
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendToDebugOutput($"[UI] Failed to initialize VRAM performance counter: {ex.Message}. Ensure 'System.Diagnostics.PerformanceCounter' NuGet package is installed.");
-            }
+                    var category = new PerformanceCounterCategory("GPU Adapter Memory");
+                    var instances = category.GetInstanceNames();
+                    var newCounters = new List<PerformanceCounter>();
+                    foreach (var instance in instances)
+                    {
+                        newCounters.Add(new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", instance));
+                    }
 
-            _vramTimer = new System.Windows.Forms.Timer();
-            _vramTimer.Interval = 1000; // Update every 1 second
-            _vramTimer.Tick += (s, e) => UpdateVramUsage();
-            _vramTimer.Start();
+                    try
+                    {
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            if (this.IsDisposed) return;
+                            _vramCounters.AddRange(newCounters);
+                            _vramTimer = new System.Windows.Forms.Timer();
+                            _vramTimer.Interval = 1000; // Update every 1 second
+                            _vramTimer.Tick += (s, e) => UpdateVramUsage();
+                            _vramTimer.Start();
+                        }));
+                    }
+                    catch (InvalidOperationException) { } // Handle already disposed
+                }
+                catch (Exception ex)
+                {
+                    AppendToDebugOutput($"[UI] Failed to initialize VRAM performance counter: {ex.Message}. Ensure 'System.Diagnostics.PerformanceCounter' NuGet package is installed.");
+                }
+            });
         }
 
         private void UpdateVramUsage()
@@ -512,6 +523,8 @@ namespace WhisperNetConsoleDemo
             {
                 AppendToDebugOutput("[VAD] Error populating VAD combo: " + ex.Message);
             }
+
+            InitializeVramMonitor();
         }
 
         private bool _isClosing = false;
