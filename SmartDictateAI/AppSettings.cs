@@ -109,8 +109,8 @@ namespace SmartDictateAI
             new PromptProfile
             {
                 Name = "Translate: To German",
-                SystemPrompt = "You are a professional translator. Your task is to translate the provided text into natural, grammatically correct German. Output ONLY the translated text without any explanations.",
-                UserPrompt = "Translate the following text to German. Text:\n"
+                SystemPrompt = "Du bist ein professioneller Übersetzer. Deine Aufgabe ist es, den bereitgestellten Text in natürliches, grammatikalisch korrektes Deutsch zu übersetzen. Gib AUSSCHLIESSLICH den übersetzten Text aus, ohne Erklärungen.",
+                UserPrompt = "Übersetze den folgenden Text ins Deutsche. Text:\n"
             },
             new PromptProfile
             {
