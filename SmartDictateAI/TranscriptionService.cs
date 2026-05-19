@@ -17,9 +17,9 @@ using System.Reflection;
 using WebRtcVadSharp; // NEW: use the library directly
 
 // using LLama.Abstractions; // If using interfaces like ILLamaExecutor
-// using WhisperNetConsoleDemo; // If AppSettings is in a separate file in this namespace
+// using SmartDictateAI; // If AppSettings is in a separate file in this namespace
 
-namespace WhisperNetConsoleDemo
+namespace SmartDictateAI
     {
     public class TranscriptionService : IDisposable // Consider IAsyncDisposable
         {
@@ -103,27 +103,39 @@ namespace WhisperNetConsoleDemo
         private void OnSettingsUpdated() => SettingsUpdated?.Invoke();
 
         public void LoadAppSettings()
-            {
+        {
             OnDebugMessage("[Settings] Loading application settings...");
+
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile(appSettingsFilePath, optional: true, reloadOnChange: false);
+
             IConfigurationRoot configurationRoot = builder.Build();
             var settingsSection = configurationRoot.GetSection("AppSettings");
 
             if (settingsSection.Exists())
-                {
+            {
+                // IMPORTANT: reset list so binder doesn't append.
+                Settings.PromptProfiles = new List<PromptProfile>();
+
                 settingsSection.Bind(Settings);
+
+                // If file has no profiles, inject defaults
+                Settings.EnsureDefaultPromptProfiles();
+
                 OnDebugMessage($"[VAD] Loaded Whisper Model: {Settings.ModelFilePath}, LLM Model: {Settings.LocalLLMModelPath}, VAD Mode: {Settings.VadMode}, Mic: {Settings.SelectedMicrophoneDevice}");
-                }
+            }
             else
-                {
+            {
                 OnDebugMessage($"[Settings] '{appSettingsFilePath}' not found. Using/Creating defaults.");
+                Settings.EnsureDefaultPromptProfiles();
                 SaveAppSettings();
-                }
+            }
+
             currentWhisperModelPath = Settings.ModelFilePath;
             OnSettingsUpdated();
-            }
+        }
+
 
         public void SaveAppSettings()
             {
@@ -992,7 +1004,7 @@ namespace WhisperNetConsoleDemo
                 Settings.VadMode = mode;
                 if (_vad != null)
                     _vad.OperatingMode = (OperatingMode)mode;
-                SaveAppSettings();
+                //SaveAppSettings();
                 OnSettingsUpdated();
                 OnDebugMessage($"[VAD] VAD mode updated to {mode}.");
                 }

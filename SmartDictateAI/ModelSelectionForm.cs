@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace WhisperNetConsoleDemo
+namespace SmartDictateAI
     {
     public partial class ModelSelectionForm : Form
         {

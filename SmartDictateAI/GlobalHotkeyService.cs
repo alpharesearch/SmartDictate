@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace WhisperNetConsoleDemo
+namespace SmartDictateAI
 {
     public class GlobalHotkeyService : IDisposable
     {

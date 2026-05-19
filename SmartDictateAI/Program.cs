@@ -1,5 +1,5 @@
 ﻿// Program.cs (for WinForms)
-namespace WhisperNetConsoleDemo
+namespace SmartDictateAI
     {
     internal static class Program
         {

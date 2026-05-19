@@ -1,4 +1,4 @@
-﻿namespace WhisperNetConsoleDemo
+﻿namespace SmartDictateAI
     {
     partial class ModelSelectionForm
         {

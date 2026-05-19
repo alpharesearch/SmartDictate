@@ -1,5 +1,5 @@
-﻿namespace WhisperNetConsoleDemo
-    {
+﻿namespace SmartDictateAI
+{
     partial class MainForm
         {
         /// <summary>
@@ -27,7 +27,7 @@
         /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent()
-            {
+        {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             textBoxOutput = new TextBox();
             textBoxDebug = new TextBox();
@@ -47,6 +47,7 @@
             label_vram = new Label();
             groupBox1 = new GroupBox();
             groupBox2 = new GroupBox();
+            comboBox1 = new ComboBox();
             groupBox3 = new GroupBox();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
@@ -249,6 +250,7 @@
             // groupBox2
             // 
             groupBox2.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            groupBox2.Controls.Add(comboBox1);
             groupBox2.Controls.Add(btnCopyRawText);
             groupBox2.Controls.Add(btnCopyLLMText);
             groupBox2.Controls.Add(lblDictateInstruction);
@@ -260,6 +262,15 @@
             groupBox2.TabIndex = 18;
             groupBox2.TabStop = false;
             groupBox2.Text = "Control";
+            // 
+            // comboBox1
+            // 
+            comboBox1.FormattingEnabled = true;
+            comboBox1.Location = new Point(566, 22);
+            comboBox1.Name = "comboBox1";
+            comboBox1.Size = new Size(121, 23);
+            comboBox1.TabIndex = 16;
+            comboBox1.SelectedValueChanged += comboBox1_SelectedValueChanged;
             // 
             // groupBox3
             // 
@@ -297,7 +308,7 @@
             groupBox3.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
-            }
+        }
 
         #endregion
 
@@ -320,5 +331,6 @@
         private GroupBox groupBox1;
         private GroupBox groupBox2;
         private GroupBox groupBox3;
-        }
+        private ComboBox comboBox1;
+    }
     }

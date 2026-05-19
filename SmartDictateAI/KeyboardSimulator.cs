@@ -4,7 +4,7 @@ using System.Threading;
 using System.Windows.Forms; // For Keys enum
 using System.Text.RegularExpressions;
 
-namespace WhisperNetConsoleDemo;
+namespace SmartDictateAI;
 
 public static class KeyboardSimulator
 {

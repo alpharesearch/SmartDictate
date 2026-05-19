@@ -1,13 +1,13 @@
 // AppSettings.cs
 /// <summary>
-/// Represents the application settings for the WhisperNetConsoleDemo,
+/// Represents the application settings for the SmartDictateAI,
 /// including audio input, model configuration, and language model processing options.
 /// </summary>
 using System.Collections.Generic;
-namespace WhisperNetConsoleDemo
-    {
+namespace SmartDictateAI
+{
     public class AppSettings
-        {
+    {
 
         public const string APPSETTINGS_DEFAULT_MODEL_PATH = "ggml-base.bin";
 
@@ -45,5 +45,37 @@ namespace WhisperNetConsoleDemo
         public string DictationHotkeyKey { get; set; } = "D";
         public string ProofreadHotkeyModifiers { get; set; } = "Control, Alt";
         public string ProofreadHotkeyKey { get; set; } = "P";
+
+        // Always start with an empty list so Binder can fill it cleanly.
+        public List<PromptProfile> PromptProfiles { get; set; } = new();
+
+        public string ActivePromptProfileName { get; set; } = "Strict Proofreader";
+
+        public void EnsureDefaultPromptProfiles()
+        {
+            if (PromptProfiles == null)
+                PromptProfiles = new List<PromptProfile>();
+
+            if (PromptProfiles.Count == 0)
+            {
+                PromptProfiles.AddRange(GetDefaultPromptProfiles());
+            }
         }
+
+        public static List<PromptProfile> GetDefaultPromptProfiles() => new()
+        {
+            new PromptProfile
+            {
+                Name = "Strict Proofreader",
+                SystemPrompt = "You are a strict proofreader. Your task is to fix spelling, grammar, and punctuation in American English. Do not rewrite, summarize, or change the author's original voice. Output ONLY the final corrected text without any conversational filler, explanations, or introductory phrases.",
+                UserPrompt = "Correct the following text. Follow these strict rules:\n\n- Use American English\n- Fix grammar, spelling, and punctuation only\n- Keep the original words wherever possible\n- Preserve URLs exactly\n- Use straight quotes: \"like this\"\n- Do NOT use em dashes\n\nText:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Copy Editor",
+                SystemPrompt = "You are an expert copy editor. Your task is to take the provided transcribed text and refine it into clear, grammatically correct, and professional-sounding prose. Correct any dictation errors, fix punctuation, and improve sentence structure where necessary. Output only the refined text.",
+                UserPrompt = "Review the following dictation for spelling and grammar errors in American style, and enhance its professionalism. You work through the whole text step by step to ensure accuracy. Correct grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation, now the dictation starts:"
+            }
+        };
     }
+}
