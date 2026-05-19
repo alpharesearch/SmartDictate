@@ -39,3 +39,21 @@ The project requires Visual Studio 2022 to build and run effectively, particular
     *   camelCase for local variables and parameters.
     *   Private backing fields typically use an underscore prefix (e.g., `_isProofreadingClipboard`, `_vramTimer`).
 *   **UI Threading:** When updating UI components from background threads (like transcription services), use `Control.Invoke` or `Control.BeginInvoke` to ensure thread safety.
+
+## Testing
+
+The project uses **xUnit** for unit testing, located in the `SmartDictateAI.Tests` project.
+
+### Running Tests
+You can run the tests using any of the following methods:
+*   **Visual Studio:** Open the Test Explorer (`Test` > `Test Explorer`) and click "Run All".
+*   **VS Code / C# Dev Kit:** Use the Testing sidebar (beaker icon) to discover and run tests.
+*   **.NET CLI:** Run the following command from the repository root:
+    ```bash
+    dotnet test
+    ```
+
+### Testing Conventions
+*   **Framework:** xUnit is used as the primary testing framework.
+*   **Target Framework:** The test project must target `net9.0-windows` to ensure compatibility with the main Windows Forms application.
+*   **Naming Conventions:** Test classes should append `Tests` to the name of the class being tested (e.g., `AppSettingsTests`). Test methods generally follow a descriptive pattern, such as `MethodName_StateUnderTest_ExpectedBehavior`.
