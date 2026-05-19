@@ -1069,15 +1069,15 @@ namespace SmartDictateAI
         private void chkDebug_CheckedChanged(object sender, EventArgs e)
             {
             transcriptionService.Settings.ShowDebugMessages = chkDebug.Checked;
-            //AppendToDebugOutput("[UI] Saveing because chkDebug_CheckedChanged");
-            //transcriptionService.SaveAppSettings();
+            AppendToDebugOutput("[UI] Saveing because chkDebug_CheckedChanged");
+            transcriptionService.SaveAppSettings();
             }
 
         private void chkLLM_CheckedChanged(object sender, EventArgs e)
             {
             transcriptionService.Settings.ProcessWithLLM = chkLLM.Checked;
-            //AppendToDebugOutput("[UI] Saveing because chkLLM_CheckedChanged");
-            //transcriptionService.SaveAppSettings();
+            AppendToDebugOutput("[UI] Saveing because chkLLM_CheckedChanged");
+            transcriptionService.SaveAppSettings();
             }
 
         private async void btnLLMcb_Click(object sender, EventArgs e)
