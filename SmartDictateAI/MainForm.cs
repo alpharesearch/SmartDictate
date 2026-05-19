@@ -56,7 +56,7 @@ namespace SmartDictateAI
             comboBox1.DataSource = transcriptionService.Settings.PromptProfiles;
             comboBox1.DisplayMember = "Name";
             comboBox1.ValueMember = "Name";
-            
+
 
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
             chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
@@ -74,6 +74,7 @@ namespace SmartDictateAI
             SetupContextMenus();
             _loadingUi = false;
             AppendToDebugOutput($"[UI] Init comboBox1.SelectedValue: {transcriptionService.Settings.ActivePromptProfileName}");
+            comboBox1.SelectedIndex = -1; // Force a selection change
             comboBox1.SelectedValue = transcriptionService.Settings.ActivePromptProfileName;
         }
 
@@ -606,7 +607,7 @@ namespace SmartDictateAI
         private async void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             AppendToDebugOutput($"[UI] Saving because form is closing");
-            transcriptionService.SaveAppSettings();
+            transcriptionService?.SaveAppSettings();
             if (!_isClosing && isFormRecordingState && transcriptionService != null)
             {
                 e.Cancel = true; // Prevent closing immediately while recording
