@@ -53,9 +53,9 @@
             gbControl.SuspendLayout();
             gbDebug.SuspendLayout();
             SuspendLayout();
-            //
+            // 
             // textBoxOutput
-            //
+            // 
             textBoxOutput.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             textBoxOutput.Location = new Point(7, 76);
             textBoxOutput.Margin = new Padding(1);
@@ -64,9 +64,9 @@
             textBoxOutput.ScrollBars = ScrollBars.Vertical;
             textBoxOutput.Size = new Size(777, 206);
             textBoxOutput.TabIndex = 1;
-            //
+            // 
             // textBoxDebug
-            //
+            // 
             textBoxDebug.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             textBoxDebug.Location = new Point(0, 45);
             textBoxDebug.Margin = new Padding(1);
@@ -75,9 +75,9 @@
             textBoxDebug.ScrollBars = ScrollBars.Vertical;
             textBoxDebug.Size = new Size(777, 207);
             textBoxDebug.TabIndex = 2;
-            //
+            // 
             // cmbVadSensitivity
-            //
+            // 
             cmbVadSensitivity.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             cmbVadSensitivity.Location = new Point(460, 22);
             cmbVadSensitivity.Margin = new Padding(1);
@@ -85,9 +85,9 @@
             cmbVadSensitivity.Size = new Size(73, 23);
             cmbVadSensitivity.TabIndex = 3;
             cmbVadSensitivity.Text = "VAD";
-            //
+            // 
             // btnModelSettings
-            //
+            // 
             btnModelSettings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnModelSettings.Location = new Point(593, 22);
             btnModelSettings.Margin = new Padding(1);
@@ -97,9 +97,9 @@
             btnModelSettings.Text = "Model";
             btnModelSettings.UseVisualStyleBackColor = true;
             btnModelSettings.Click += btnModelSettings_Click;
-            //
+            // 
             // btnMicInput
-            //
+            // 
             btnMicInput.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnMicInput.Location = new Point(535, 22);
             btnMicInput.Margin = new Padding(1);
@@ -109,9 +109,9 @@
             btnMicInput.Text = "Mic input";
             btnMicInput.UseVisualStyleBackColor = true;
             btnMicInput.Click += btnMicInput_Click;
-            //
+            // 
             // btnStartStop
-            //
+            // 
             btnStartStop.Location = new Point(4, 20);
             btnStartStop.Margin = new Padding(1);
             btnStartStop.Name = "btnStartStop";
@@ -120,18 +120,18 @@
             btnStartStop.Text = "Start";
             btnStartStop.UseVisualStyleBackColor = true;
             btnStartStop.Click += btnStartStop_Click;
-            //
+            // 
             // lblCalibrationIndicator
-            //
+            // 
             lblCalibrationIndicator.AutoSize = true;
             lblCalibrationIndicator.Location = new Point(60, 48);
             lblCalibrationIndicator.Margin = new Padding(1, 0, 1, 0);
             lblCalibrationIndicator.Name = "lblCalibrationIndicator";
             lblCalibrationIndicator.Size = new Size(0, 15);
             lblCalibrationIndicator.TabIndex = 7;
-            //
+            // 
             // lblStatusIndicator
-            //
+            // 
             lblStatusIndicator.AutoSize = true;
             lblStatusIndicator.Location = new Point(7, 60);
             lblStatusIndicator.Margin = new Padding(1, 0, 1, 0);
@@ -139,9 +139,9 @@
             lblStatusIndicator.Size = new Size(26, 15);
             lblStatusIndicator.TabIndex = 8;
             lblStatusIndicator.Text = "Idle";
-            //
+            // 
             // btnCopyRawText
-            //
+            // 
             btnCopyRawText.Location = new Point(4, 20);
             btnCopyRawText.Margin = new Padding(1);
             btnCopyRawText.Name = "btnCopyRawText";
@@ -150,9 +150,9 @@
             btnCopyRawText.Text = "Copy Raw";
             btnCopyRawText.UseVisualStyleBackColor = true;
             btnCopyRawText.Click += btnCopyRawText_Click;
-            //
+            // 
             // btnCopyLLMText
-            //
+            // 
             btnCopyLLMText.Location = new Point(94, 20);
             btnCopyLLMText.Margin = new Padding(1);
             btnCopyLLMText.Name = "btnCopyLLMText";
@@ -161,9 +161,9 @@
             btnCopyLLMText.Text = "Copy LLM";
             btnCopyLLMText.UseVisualStyleBackColor = true;
             btnCopyLLMText.Click += btnCopyLLMText_Click;
-            //
+            // 
             // chkDebug
-            //
+            // 
             chkDebug.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             chkDebug.AutoSize = true;
             chkDebug.Location = new Point(707, 25);
@@ -174,9 +174,9 @@
             chkDebug.Text = "Debug";
             chkDebug.UseVisualStyleBackColor = true;
             chkDebug.CheckedChanged += chkDebug_CheckedChanged;
-            //
+            // 
             // chkLLM
-            //
+            // 
             chkLLM.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             chkLLM.AutoSize = true;
             chkLLM.Location = new Point(656, 25);
@@ -187,9 +187,9 @@
             chkLLM.Text = "LLM";
             chkLLM.UseVisualStyleBackColor = true;
             chkLLM.CheckedChanged += chkLLM_CheckedChanged;
-            //
+            // 
             // lblDictateInstruction
-            //
+            // 
             lblDictateInstruction.AutoSize = true;
             lblDictateInstruction.Location = new Point(184, 19);
             lblDictateInstruction.Margin = new Padding(1, 0, 1, 0);
@@ -197,9 +197,9 @@
             lblDictateInstruction.Size = new Size(96, 30);
             lblDictateInstruction.TabIndex = 13;
             lblDictateInstruction.Text = "CTRL + ALT + D\r\nto dictate cursor.";
-            //
+            // 
             // btnLLMcb
-            //
+            // 
             btnLLMcb.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnLLMcb.Location = new Point(693, 20);
             btnLLMcb.Name = "btnLLMcb";
@@ -208,9 +208,9 @@
             btnLLMcb.Text = "Rerun LLM";
             btnLLMcb.UseVisualStyleBackColor = true;
             btnLLMcb.Click += btnLLMcb_Click;
-            //
+            // 
             // lblProofreadInstruction
-            //
+            // 
             lblProofreadInstruction.AutoSize = true;
             lblProofreadInstruction.Location = new Point(282, 19);
             lblProofreadInstruction.Margin = new Padding(1, 0, 1, 0);
@@ -218,9 +218,9 @@
             lblProofreadInstruction.Size = new Size(168, 30);
             lblProofreadInstruction.TabIndex = 15;
             lblProofreadInstruction.Text = "CTRL + ALT + P\r\nto proofreads clipboard locally";
-            //
+            // 
             // lblVramUsage
-            //
+            // 
             lblVramUsage.AutoSize = true;
             lblVramUsage.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblVramUsage.Location = new Point(4, 19);
@@ -229,9 +229,9 @@
             lblVramUsage.Size = new Size(40, 15);
             lblVramUsage.TabIndex = 16;
             lblVramUsage.Text = "VRAM";
-            //
+            // 
             // gbMain
-            //
+            // 
             gbMain.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             gbMain.Controls.Add(btnStartStop);
             gbMain.Controls.Add(cmbVadSensitivity);
@@ -246,9 +246,9 @@
             gbMain.TabIndex = 17;
             gbMain.TabStop = false;
             gbMain.Text = "Main";
-            //
+            // 
             // gbControl
-            //
+            // 
             gbControl.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gbControl.Controls.Add(cmbPromptSelect);
             gbControl.Controls.Add(btnCopyRawText);
@@ -262,18 +262,18 @@
             gbControl.TabIndex = 18;
             gbControl.TabStop = false;
             gbControl.Text = "Control";
-            //
+            // 
             // cmbPromptSelect
-            //
+            // 
             cmbPromptSelect.FormattingEnabled = true;
-            cmbPromptSelect.Location = new Point(566, 22);
+            cmbPromptSelect.Location = new Point(521, 22);
             cmbPromptSelect.Name = "cmbPromptSelect";
-            cmbPromptSelect.Size = new Size(121, 23);
+            cmbPromptSelect.Size = new Size(166, 23);
             cmbPromptSelect.TabIndex = 16;
             cmbPromptSelect.SelectedValueChanged += cmbPromptSelect_SelectedValueChanged;
-            //
+            // 
             // gbDebug
-            //
+            // 
             gbDebug.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gbDebug.Controls.Add(lblVramUsage);
             gbDebug.Controls.Add(textBoxDebug);
@@ -283,9 +283,9 @@
             gbDebug.TabIndex = 19;
             gbDebug.TabStop = false;
             gbDebug.Text = "Debug";
-            //
+            // 
             // MainForm
-            //
+            // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(798, 606);
