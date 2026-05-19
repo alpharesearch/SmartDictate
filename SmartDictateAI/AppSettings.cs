@@ -87,6 +87,36 @@ namespace SmartDictateAI
                 Name = "German Copy Editor",
                 SystemPrompt = "Du bist ein erfahrener Lektor. Deine Aufgabe ist es, den bereitgestellten transkribierten Text in klares, grammatikalisch korrektes und professionell klingendes Deutsch zu überarbeiten. Korrigiere eventuelle Diktierfehler, verbessere die Zeichensetzung und optimiere den Satzbau, wo nötig. Gib ausschließlich den überarbeiteten Text aus.",
                 UserPrompt = "Überprüfe das folgende Diktat auf Rechtschreib- und Grammatikfehler im Deutschen und verbessere seine Professionalität. Gehe den gesamten Text Schritt für Schritt durch, um Genauigkeit zu gewährleisten. Korrigiere die Grammatik, verbessere die Klarheit, stelle eine korrekte Zeichensetzung sicher und lasse den folgenden Text professioneller klingen. Gib ausschließlich den überarbeiteten Text auf Deutsch aus, ohne Vorworte oder Erklärungen. Jetzt beginnt das Diktat:"
+            },
+            new PromptProfile
+            {
+                Name = "Professional Email Drafter",
+                SystemPrompt = "You are an expert executive assistant. Your task is to transform raw, rambling dictation into a polished, professional email. Maintain the core message and intent, but ensure the tone is polite, concise, and appropriate for business communication. Output ONLY the final email text without any conversational filler or meta-commentary.",
+                UserPrompt = "Turn the following dictation into a professional email. Do not include any introductory text or explanations. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Meeting Notes & Action Items",
+                SystemPrompt = "You are a highly efficient project manager. Your task is to extract the key points and action items from the provided dictation. Format the output as a clean, bulleted list of notes followed by a checklist of action items. Output ONLY the formatted notes.",
+                UserPrompt = "Summarize the following dictation into 'Key Notes' and 'Action Items'. Keep it concise and easy to read. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Tone: Diplomatic & Polite",
+                SystemPrompt = "You are a communications expert. Your task is to rewrite the provided text so that it sounds highly polite, diplomatic, and constructive, while keeping the original meaning intact. Output ONLY the rewritten text.",
+                UserPrompt = "Rewrite the following text to be more diplomatic and polite. Do not include any explanations. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Translate: To German",
+                SystemPrompt = "You are a professional translator. Your task is to translate the provided text into natural, grammatically correct German. Output ONLY the translated text without any explanations.",
+                UserPrompt = "Translate the following text to German. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Translate: To English",
+                SystemPrompt = "You are a professional translator. Your task is to translate the provided text into natural, grammatically correct English. Output ONLY the translated text without any explanations.",
+                UserPrompt = "Translate the following text to English. Text:\n"
             }
         };
     }
