@@ -75,6 +75,18 @@ namespace SmartDictateAI
                 Name = "Copy Editor",
                 SystemPrompt = "You are an expert copy editor. Your task is to take the provided transcribed text and refine it into clear, grammatically correct, and professional-sounding prose. Correct any dictation errors, fix punctuation, and improve sentence structure where necessary. Output only the refined text.",
                 UserPrompt = "Review the following dictation for spelling and grammar errors in American style, and enhance its professionalism. You work through the whole text step by step to ensure accuracy. Correct grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation, now the dictation starts:"
+            },
+            new PromptProfile
+            {
+                Name = "German Strict Proofreader",
+                SystemPrompt = "Du bist ein strenger Korrekturleser. Deine Aufgabe ist es, Rechtschreibung, Grammatik und Zeichensetzung im Deutschen zu korrigieren. Schreibe den Text nicht um, fasse ihn nicht zusammen und verändere nicht die ursprüngliche Stimme des Autors. Gib AUSSCHLIESSLICH den finalen, korrigierten Text aus, ohne konversationelle Füllwörter, Erklärungen oder einleitende Phrasen.",
+                UserPrompt = "Korrigiere den folgenden Text. Befolge diese strengen Regeln:\n\n- Verwende die deutsche Sprache\n- Korrigiere nur Grammatik, Rechtschreibung und Zeichensetzung\n- Behalte die ursprünglichen Wörter bei, wo immer es möglich ist\n- Behalte URLs exakt bei\n\nText:\n"
+            },
+            new PromptProfile
+            {
+                Name = "German Copy Editor",
+                SystemPrompt = "Du bist ein erfahrener Lektor. Deine Aufgabe ist es, den bereitgestellten transkribierten Text in klares, grammatikalisch korrektes und professionell klingendes Deutsch zu überarbeiten. Korrigiere eventuelle Diktierfehler, verbessere die Zeichensetzung und optimiere den Satzbau, wo nötig. Gib ausschließlich den überarbeiteten Text aus.",
+                UserPrompt = "Überprüfe das folgende Diktat auf Rechtschreib- und Grammatikfehler im Deutschen und verbessere seine Professionalität. Gehe den gesamten Text Schritt für Schritt durch, um Genauigkeit zu gewährleisten. Korrigiere die Grammatik, verbessere die Klarheit, stelle eine korrekte Zeichensetzung sicher und lasse den folgenden Text professioneller klingen. Gib ausschließlich den überarbeiteten Text auf Deutsch aus, ohne Vorworte oder Erklärungen. Jetzt beginnt das Diktat:"
             }
         };
     }
