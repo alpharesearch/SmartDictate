@@ -314,7 +314,7 @@ namespace SmartDictateAI
                     return;
                     }
                 AppendToDebugOutput("[Dictation] Attempting to start dictation mode...");
-                UpdateStatusIndicator(AppStatus.Listening, "Dictation Starting...");
+                UpdateStatusIndicator(AppStatus.Processing, "Dictation Starting...");
                 isInDictationModeCurrently = true; // Optimistic
                 bool success = await transcriptionService.StartDictationModeAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
                 if (success)

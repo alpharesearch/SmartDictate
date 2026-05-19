@@ -1,4 +1,4 @@
-﻿// TranscriptionService.cs
+﻿﻿// TranscriptionService.cs
 using Microsoft.Extensions.Configuration;
 using NAudio.Wave;
 using System;
@@ -51,6 +51,7 @@ namespace SmartDictateAI
         private bool _loggedSilenceProcessThisChunk = false;
         private bool _loggedMaxDurationThisChunk = false;
         // --- LLamaSharp Specific ---
+        private readonly object _llmInitLock = new object();
         private LLamaWeights? llmModelWeights = null;
         private LLamaContext? llmContext = null;
         // Using StatelessExecutor as it's simpler for this kind of one-off processing per chunk
@@ -173,7 +174,7 @@ namespace SmartDictateAI
                 OnDebugMessage($"[Whisper] Factory ready | model={Path.GetFileName(currentWhisperModelPath)} | Arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
                 var assemblies = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name?.ToLowerInvariant());
 
-                string backend = assemblies.Any(a => a.Contains("vulkan"))
+                string backend = assemblies.Any(a => a != null && a.Contains("vulkan"))
                     ? "Vulkan"
                     : "CPU";
 
@@ -223,25 +224,28 @@ namespace SmartDictateAI
 
         private bool InitializeLLM()
             {
-            if (llmExecutor != null)
-                return true; // Or check llmModelWeights && llmContext
-
-            if (string.IsNullOrWhiteSpace(Settings.LocalLLMModelPath) || !File.Exists(Settings.LocalLLMModelPath))
+            lock (_llmInitLock)
                 {
-                OnDebugMessage($"[Settings] LLM Initialize: LocalLLMModelPath invalid: {Settings.LocalLLMModelPath}");
-                return false;
-                }
-            OnDebugMessage($"[Settings] Initializing LLamaSharp with model: {Settings.LocalLLMModelPath}");
-            try
-                {
-                DisposeLLMResourcesInternal(); // Dispose previous if any
+                if (llmExecutor != null)
+                    return true; // Or check llmModelWeights && llmContext
 
-                var parameters = new ModelParams(Settings.LocalLLMModelPath)
+                if (string.IsNullOrWhiteSpace(Settings.LocalLLMModelPath) || !File.Exists(Settings.LocalLLMModelPath))
                     {
-                    ContextSize = (uint)Settings.LLMContextSize,
-                    GpuLayerCount = Settings.UseGpu ? 99 : 0 // 99 for all layers to GPU if possible
-                    };
-                llmModelWeights = LLamaWeights.LoadFromFile(parameters);
+                    OnDebugMessage($"[Settings] LLM Initialize: LocalLLMModelPath invalid: {Settings.LocalLLMModelPath}");
+                    return false;
+                    }
+                OnDebugMessage($"[Settings] Initializing LLamaSharp with model: {Settings.LocalLLMModelPath}");
+                try
+                    {
+                    DisposeLLMResourcesInternal(); // Dispose previous if any
+
+                    var parameters = new ModelParams(Settings.LocalLLMModelPath)
+                        {
+                        ContextSize = (uint)Settings.LLMContextSize,
+                        GpuLayerCount = Settings.UseGpu ? 99 : 0 // 99 for all layers to GPU if possible
+                        };
+                    llmModelWeights = LLamaWeights.LoadFromFile(parameters);
+
                 // llmContext = llmModelWeights.CreateContext(parameters); // This was an older way for context
                 // For StatelessExecutor, you don't always need to create a context separately this way
                 // The executor can manage it or you pass parameters directly to it if needed.
@@ -257,6 +261,7 @@ namespace SmartDictateAI
                 OnDebugMessage($"[LLM] FATAL: [LLM] Could not initialize LLamaSharp: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 DisposeLLMResourcesInternal(); // Ensure cleanup on failure
                 return false;
+                }
                 }
             }
 
@@ -287,16 +292,19 @@ namespace SmartDictateAI
 
         private void DisposeLLMResourcesInternal() // Synchronous for now, can be made async if LLamaSharp uses IAsyncDisposable heavily
             {
-            OnDebugMessage("[LLM] Disposing LLamaSharp internal resources.");
-            if (llmExecutor is IDisposable disposableExecutor)
+            lock (_llmInitLock)
                 {
-                disposableExecutor.Dispose();
+                OnDebugMessage("[LLM] Disposing LLamaSharp internal resources.");
+                if (llmExecutor is IDisposable disposableExecutor)
+                    {
+                    disposableExecutor.Dispose();
+                    }
+                llmContext?.Dispose(); // If we were creating a context separately
+                llmModelWeights?.Dispose();
+                llmExecutor = null;
+                llmContext = null;
+                llmModelWeights = null;
                 }
-            llmContext?.Dispose(); // If we were creating a context separately
-            llmModelWeights?.Dispose();
-            llmExecutor = null;
-            llmContext = null;
-            llmModelWeights = null;
             }
 
         public async Task DisposeLLMResourcesAsync()
@@ -462,7 +470,7 @@ namespace SmartDictateAI
                                                 Settings.DictationMaxChunkDurationSeconds :
                                                 Settings.NormalMaxChunkDurationSeconds;
 
-            if (currentAudioChunkStream.Length > (waveFormatForWhisper.AverageBytesPerSecond / 2))
+            if (currentAudioChunkStream != null && currentAudioChunkStream.Length > (waveFormatForWhisper.AverageBytesPerSecond / 2))
             {
                 if (chunkDur >= TimeSpan.FromSeconds(currentMaxChunkDurationSeconds))
                 {
@@ -629,7 +637,7 @@ namespace SmartDictateAI
                 ws.RecordingStopped -= WaveSource_RecordingStopped; // Unsubscribe from itself
                 try
                     {
-                        Task.Run(() => ws.Dispose());
+                        _ = Task.Run(() => ws.Dispose());
                         OnDebugMessage("[Audio] WaveSource_RecordingStopped - WaveInEvent sender disposal deferred to background task.");
                     }
                 catch (Exception ex) { OnDebugMessage($"[Audio] Err disposing WaveInEvent: {ex.Message}"); }
@@ -1040,11 +1048,11 @@ namespace SmartDictateAI
                 return false;
                 }
 
-            if (llmExecutor == null && Settings.ProcessWithLLM && !InitializeLLM()) // Pre-initialize LLM only if necessary
+            if (llmExecutor == null && Settings.ProcessWithLLM) // Pre-initialize LLM in background so we don't delay the mic
                 {
-                OnDebugMessage("[LLM] LLM init failed, proceeding without LLM for this session if StartRecording is called again.");
+                _ = Task.Run(() => InitializeLLM());
                 }
-            
+
             OnDebugMessage($"[Audio] Starting recording with mic [{deviceNumber}]...");
             lock (currentSessionTranscribedText)
             {
@@ -1282,4 +1290,3 @@ namespace SmartDictateAI
             }
         }
     }
-
