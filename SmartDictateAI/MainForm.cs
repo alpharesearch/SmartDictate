@@ -73,6 +73,7 @@ namespace SmartDictateAI
             InitializeHotkeyService();
             btnCopyRawText.Enabled = false;
             btnCopyLLMText.Enabled = false;
+            btnLLMcb.Enabled = false;
             SetupContextMenus();
             _loadingUi = false;
             AppendToDebugOutput($"[UI] Init comboBox1.SelectedValue: {transcriptionService.Settings.ActivePromptProfileName}");
@@ -823,17 +824,19 @@ namespace SmartDictateAI
             btnModelSettings.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal; // Model
             btnMicInput.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal; // Mic
 
-            // Copy button states
-            if (!isFormRecordingState && !isStoppingOrProcessingFinal) // Only enable copy buttons when not recording and not stopping/processing
+            // Copy and rerun LLM button states
+            if (!isFormRecordingState && !isStoppingOrProcessingFinal) // Only enable copy and rerun LLM buttons when not recording and not stopping/processing
                 {
                 btnCopyRawText.Enabled = !string.IsNullOrEmpty(transcriptionService.LastRawFilteredText);
                 btnCopyLLMText.Enabled = transcriptionService.WasLastProcessingWithLLM &&
                                          !string.IsNullOrEmpty(transcriptionService.LastLLMProcessedText);
+                btnLLMcb.Enabled = !string.IsNullOrEmpty(transcriptionService.LastRawFilteredText);
                 }
             else
                 {
                 btnCopyRawText.Enabled = false;
                 btnCopyLLMText.Enabled = false;
+                btnLLMcb.Enabled = false;
                 }
 
             }
@@ -1173,12 +1176,25 @@ namespace SmartDictateAI
 
         private async void btnLLMcb_Click(object sender, EventArgs e)
             {
-            var LLM = await transcriptionService.ProcessTextWithLLMAsync(transcriptionService.LastRawFilteredText);
-            textBoxOutput.Text += Environment.NewLine;
-            textBoxOutput.Text += transcriptionService.LastRawFilteredText;
-            textBoxOutput.Text += Environment.NewLine;
-            textBoxOutput.Text += LLM;
-            transcriptionService.LastLLMProcessedText = LLM;
+            try
+                {
+                btnLLMcb.Enabled = false;
+                var LLM = await transcriptionService.ProcessTextWithLLMAsync(transcriptionService.LastRawFilteredText);
+                textBoxOutput.Text += Environment.NewLine;
+                textBoxOutput.Text += transcriptionService.LastRawFilteredText;
+                textBoxOutput.Text += Environment.NewLine;
+                textBoxOutput.Text += LLM;
+                transcriptionService.LastLLMProcessedText = LLM;
+                transcriptionService.WasLastProcessingWithLLM = !string.IsNullOrWhiteSpace(LLM);
+                }
+            catch (Exception ex)
+                {
+                AppendToDebugOutput($"[LLM] Error rerunning LLM: {ex.Message}");
+                }
+            finally
+                {
+                UpdateButtonStates();
+                }
             }
 
         private void cmbVadSensitivity_SelectedIndexChanged(object? sender, EventArgs e)
