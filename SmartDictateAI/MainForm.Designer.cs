@@ -115,7 +115,7 @@
             btnStartStop.Location = new Point(4, 20);
             btnStartStop.Margin = new Padding(1);
             btnStartStop.Name = "btnStartStop";
-            btnStartStop.Size = new Size(143, 27);
+            btnStartStop.Size = new Size(112, 27);
             btnStartStop.TabIndex = 6;
             btnStartStop.Text = "Start";
             btnStartStop.UseVisualStyleBackColor = true;
@@ -133,11 +133,11 @@
             // lblStatusIndicator
             // 
             lblStatusIndicator.AutoSize = true;
-            lblStatusIndicator.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            lblStatusIndicator.Location = new Point(7, 60);
+            lblStatusIndicator.Font = new Font("Segoe UI Emoji", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblStatusIndicator.Location = new Point(118, 22);
             lblStatusIndicator.Margin = new Padding(1, 0, 1, 0);
             lblStatusIndicator.Name = "lblStatusIndicator";
-            lblStatusIndicator.Size = new Size(26, 16);
+            lblStatusIndicator.Size = new Size(31, 19);
             lblStatusIndicator.TabIndex = 8;
             lblStatusIndicator.Text = "Idle";
             // 
@@ -234,6 +234,7 @@
             // gbMain
             // 
             gbMain.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            gbMain.Controls.Add(lblStatusIndicator);
             gbMain.Controls.Add(btnStartStop);
             gbMain.Controls.Add(cmbVadSensitivity);
             gbMain.Controls.Add(btnModelSettings);
@@ -290,10 +291,9 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(798, 606);
+            Controls.Add(textBoxOutput);
             Controls.Add(gbDebug);
             Controls.Add(gbControl);
-            Controls.Add(textBoxOutput);
-            Controls.Add(lblStatusIndicator);
             Controls.Add(gbMain);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(1);

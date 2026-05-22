@@ -570,15 +570,15 @@ namespace SmartDictateAI
             }
 
         private void TranscriptionService_VisualStateChanged(DictationVisualState state)
-        {
-            if (this.InvokeRequired)
             {
+            if (this.InvokeRequired)
+                {
                 this.BeginInvoke(new Action(() => TranscriptionService_VisualStateChanged(state)));
                 return;
-            }
+                }
 
             switch (state)
-            {
+                {
                 case DictationVisualState.Idle:
                     lblStatusIndicator.Text = "⚪ Ready";
                     lblStatusIndicator.BackColor = Color.FromArgb(240, 240, 240);
@@ -602,8 +602,8 @@ namespace SmartDictateAI
                     lblStatusIndicator.BackColor = Color.FromArgb(255, 248, 230);
                     lblStatusIndicator.ForeColor = Color.FromArgb(230, 115, 0);
                     break;
+                }
             }
-        }
 
         private bool activelyProcessingChunkInUI = false;
         private void OnServiceProcessingStarted()
