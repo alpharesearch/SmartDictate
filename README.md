@@ -1,4 +1,4 @@
-﻿﻿# SmartDictate
+﻿# SmartDictate
 
 ## Getting Started
 
@@ -13,20 +13,28 @@
 
 ## Key Features
 
-- **Global Dictation Mode (`CTRL + ALT + D`):** Dictate directly into any application. The app types out your transcribed text at your cursor.
-- **Clipboard Proofreading (`CTRL + ALT + P`):** Send your currently copied text through the local LLM to correct grammar, spelling, and punctuation, then auto-paste it back.
+- **Consolidated Tabbed Settings Panel**: Access all core and advanced settings (Whisper models, LLM parameters, audio input devices, custom hotkeys, VAD mode, chunking thresholds, and custom prompt profiles) in a single tabbed dialog.
+- **Multi-State Visual Pipeline Indicator**: View real-time visual status updates (Idle, Listening/Silent, Speech Detected, Processing) through the active color-coded status bar (`lblStatusIndicator`).
+- **Interactive Clipboard Rerun (`Rerun LLM` button)**: Dynamically checks for available clipboard text history and enables quick LLM-refinement on-demand.
+- **Integrated Download Shortcuts**: Directly click built-in link labels in the **Models** tab of the settings menu to download recommended high-performance local models.
+- **Global Dictation Mode (`CTRL + ALT + D`):** Dictate directly into any active windows application. The app types out your transcribed text right at your cursor.
+- **Clipboard Proofreading (`CTRL + ALT + P`):** Instantly refines your currently copied clipboard text using the local LLM to correct grammar, spelling, and punctuation, then auto-pastes it back.
 - **Local LLM Refinement:** Automatically proofreads and refines your dictations using local GGUF models.
-- **Auto-Prompt Formatting:** Automatically detects and applies the correct instruction templates for Qwen, Llama, and Gemma models based on the file name. You can manually override this behavior by setting `LLMPromptTemplate` in the `appsettings.json` file.
-- **Real-time Resource Monitoring:** Live tracking of System RAM and GPU VRAM (Application footprint vs. Total system usage).
-- **Advanced VAD (Voice Activity Detection):** Adjustable sensitivity settings to ignore background noise and handle automatic audio chunking.
+- **Auto-Prompt Formatting:** Automatically detects and applies the correct instruction templates for Qwen, Llama, and Gemma models based on the filename. You can manually override this behavior by setting `LLMPromptTemplate` in the `appsettings.json` file.
+- **Real-time Resource Monitoring**: Live tracking of System RAM and GPU VRAM (Application footprint vs. Total system usage).
+- **Advanced VAD (Voice Activity Detection)**: Adjustable sensitivity settings to filter out background noise and handle automated chunking.
 
 ## Basic Usage
 
-1. Select your microphone ("Mic input") and local models ("Model").
-2. Set your VAD sensitivity (Low, Medium, High, Max) from the dropdown.
-3. Click "Start" to dictate locally, or use the **Global Hotkeys** mentioned above.
-4. Copy raw or LLM-refined text, or click "Rerun LLM" to re-process the last dictation.
-5. Toggle the "Debug" checkbox to view underlying logs and memory stats.
+1. Click the **Settings** button to open the consolidated configuration panel.
+2. Select your microphone, VAD sensitivity mode, and configure Whisper/LLM models under their respective tabs:
+   * **Models**: Select model file paths (click the built-in recommendation links to download the recommended Whisper Large v3 Turbo or Gemma 4 E4B models if you don't have them yet).
+   * **Audio & VAD**: Select your input microphone, choose a VAD mode, and adjust silence thresholds for normal and dictation modes.
+   * **LLM & Prompts**: Toggle LLM refinement, select from prompt profiles, or modify system and user prompts directly.
+   * **General**: Configure real-time transcription displays and custom global keyboard hotkey overrides.
+3. Click **Start** on the main window to dictate locally, or use the **Global Hotkeys** (`Ctrl + Alt + D` to dictate, `Ctrl + Alt + P` to proofread clipboard).
+4. Watch the pipeline status indicator show exact states (Idle, Listening, Speech Detected, or Processing) as you speak.
+5. Use the context-aware **Rerun LLM** button (which is enabled whenever a valid text buffer is available) to re-refine your clipboard text.
 
 ## Required Models
 
