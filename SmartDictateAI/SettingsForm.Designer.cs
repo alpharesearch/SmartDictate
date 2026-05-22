@@ -31,6 +31,8 @@ namespace SmartDictateAI
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsForm));
             tabSettings = new TabControl();
             tabModels = new TabPage();
+            llLLM = new LinkLabel();
+            llWhisper = new LinkLabel();
             chkUseGpu = new CheckBox();
             btnBrowseLLMModel = new Button();
             txtLLMModelPath = new TextBox();
@@ -90,8 +92,6 @@ namespace SmartDictateAI
             lblHotkeyNote = new Label();
             btnOK = new Button();
             btnCancel = new Button();
-            llWhisper = new LinkLabel();
-            llLLM = new LinkLabel();
             tabSettings.SuspendLayout();
             tabModels.SuspendLayout();
             grpLlmAdvanced.SuspendLayout();
@@ -145,6 +145,28 @@ namespace SmartDictateAI
             tabModels.TabIndex = 0;
             tabModels.Text = "📁 Models";
             tabModels.UseVisualStyleBackColor = true;
+            // 
+            // llLLM
+            // 
+            llLLM.AutoSize = true;
+            llLLM.Location = new Point(15, 136);
+            llLLM.Name = "llLLM";
+            llLLM.Size = new Size(308, 15);
+            llLLM.TabIndex = 9;
+            llLLM.TabStop = true;
+            llLLM.Text = "Download Recommended: Gemma 4 E4B Instruct (GGUF)";
+            llLLM.LinkClicked += llLLM_LinkClicked;
+            // 
+            // llWhisper
+            // 
+            llWhisper.AutoSize = true;
+            llWhisper.Location = new Point(15, 66);
+            llWhisper.Name = "llWhisper";
+            llWhisper.Size = new Size(320, 15);
+            llWhisper.TabIndex = 8;
+            llWhisper.TabStop = true;
+            llWhisper.Text = "Download Recommended: Whisper Large v3 Turbo (GGML)";
+            llWhisper.LinkClicked += llWhisper_LinkClicked;
             // 
             // chkUseGpu
             // 
@@ -763,26 +785,6 @@ namespace SmartDictateAI
             btnCancel.Text = "Cancel";
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
-            // 
-            // llWhisper
-            // 
-            llWhisper.AutoSize = true;
-            llWhisper.Location = new Point(15, 66);
-            llWhisper.Name = "llWhisper";
-            llWhisper.Size = new Size(56, 15);
-            llWhisper.TabIndex = 8;
-            llWhisper.TabStop = true;
-            llWhisper.Text = "llWhisper";
-            // 
-            // llLLM
-            // 
-            llLLM.AutoSize = true;
-            llLLM.Location = new Point(15, 136);
-            llLLM.Name = "llLLM";
-            llLLM.Size = new Size(36, 15);
-            llLLM.TabIndex = 9;
-            llLLM.TabStop = true;
-            llLLM.Text = "llLLM";
             // 
             // SettingsForm
             // 
