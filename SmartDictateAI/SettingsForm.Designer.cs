@@ -90,6 +90,8 @@ namespace SmartDictateAI
             lblHotkeyNote = new Label();
             btnOK = new Button();
             btnCancel = new Button();
+            llWhisper = new LinkLabel();
+            llLLM = new LinkLabel();
             tabSettings.SuspendLayout();
             tabModels.SuspendLayout();
             grpLlmAdvanced.SuspendLayout();
@@ -126,6 +128,8 @@ namespace SmartDictateAI
             // 
             // tabModels
             // 
+            tabModels.Controls.Add(llLLM);
+            tabModels.Controls.Add(llWhisper);
             tabModels.Controls.Add(chkUseGpu);
             tabModels.Controls.Add(btnBrowseLLMModel);
             tabModels.Controls.Add(txtLLMModelPath);
@@ -760,6 +764,26 @@ namespace SmartDictateAI
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
             // 
+            // llWhisper
+            // 
+            llWhisper.AutoSize = true;
+            llWhisper.Location = new Point(15, 66);
+            llWhisper.Name = "llWhisper";
+            llWhisper.Size = new Size(56, 15);
+            llWhisper.TabIndex = 8;
+            llWhisper.TabStop = true;
+            llWhisper.Text = "llWhisper";
+            // 
+            // llLLM
+            // 
+            llLLM.AutoSize = true;
+            llLLM.Location = new Point(15, 136);
+            llLLM.Name = "llLLM";
+            llLLM.Size = new Size(36, 15);
+            llLLM.TabIndex = 9;
+            llLLM.TabStop = true;
+            llLLM.Text = "llLLM";
+            // 
             // SettingsForm
             // 
             AcceptButton = btnOK;
@@ -876,5 +900,7 @@ namespace SmartDictateAI
         private System.Windows.Forms.Label lblProofreadKey;
         private System.Windows.Forms.TextBox txtProofreadKey;
         private System.Windows.Forms.Label lblHotkeyNote;
-    }
+        private LinkLabel llLLM;
+        private LinkLabel llWhisper;
+        }
 }
