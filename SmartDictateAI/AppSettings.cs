@@ -21,7 +21,7 @@ namespace SmartDictateAI
 
         public bool ShowRealtimeTranscription { get; set; } = true;
         public bool ShowDebugMessages { get; set; } = false;
-        public bool ProcessWithLLM { get; set; } = false;
+        public bool ProcessWithLLM { get; set; } = true;
         public string LocalLLMModelPath { get; set; } = "qwen2-0_5b-instruct-q8_0.gguf"; // Example path
         public int LLMContextSize { get; set; } = 16384; // Or a sensible default for 0.5B model like 2048
         public int LLMSeed { get; set; } = 0; // 0 for random, any other int for fixed seed
