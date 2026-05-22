@@ -1,7 +1,7 @@
 ﻿namespace SmartDictateAI
 {
     partial class MainForm
-        {
+    {
         /// <summary>
         /// Required designer variable.
         /// </summary>
@@ -12,13 +12,13 @@
         /// </summary>
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
-            {
+        {
             if (disposing && (components != null))
-                {
+            {
                 components.Dispose();
-                }
-            base.Dispose(disposing);
             }
+            base.Dispose(disposing);
+        }
 
         #region Windows Form Designer generated code
 
@@ -79,10 +79,10 @@
             // cmbVadSensitivity
             // 
             cmbVadSensitivity.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            cmbVadSensitivity.Location = new Point(460, 22);
+            cmbVadSensitivity.Location = new Point(471, 22);
             cmbVadSensitivity.Margin = new Padding(1);
             cmbVadSensitivity.Name = "cmbVadSensitivity";
-            cmbVadSensitivity.Size = new Size(73, 23);
+            cmbVadSensitivity.Size = new Size(62, 23);
             cmbVadSensitivity.TabIndex = 3;
             cmbVadSensitivity.Text = "VAD";
             // 
@@ -143,7 +143,8 @@
             // 
             // btnCopyRawText
             // 
-            btnCopyRawText.Location = new Point(4, 20);
+            btnCopyRawText.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnCopyRawText.Location = new Point(511, 20);
             btnCopyRawText.Margin = new Padding(1);
             btnCopyRawText.Name = "btnCopyRawText";
             btnCopyRawText.Size = new Size(88, 24);
@@ -154,7 +155,8 @@
             // 
             // btnCopyLLMText
             // 
-            btnCopyLLMText.Location = new Point(94, 20);
+            btnCopyLLMText.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnCopyLLMText.Location = new Point(601, 20);
             btnCopyLLMText.Margin = new Padding(1);
             btnCopyLLMText.Name = "btnCopyLLMText";
             btnCopyLLMText.Size = new Size(88, 24);
@@ -268,7 +270,7 @@
             // cmbPromptSelect
             // 
             cmbPromptSelect.FormattingEnabled = true;
-            cmbPromptSelect.Location = new Point(521, 22);
+            cmbPromptSelect.Location = new Point(6, 22);
             cmbPromptSelect.Name = "cmbPromptSelect";
             cmbPromptSelect.Size = new Size(166, 23);
             cmbPromptSelect.TabIndex = 16;
@@ -334,4 +336,4 @@
         private GroupBox gbDebug;
         private ComboBox cmbPromptSelect;
     }
-    }
+}
