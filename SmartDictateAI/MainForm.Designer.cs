@@ -133,10 +133,11 @@
             // lblStatusIndicator
             // 
             lblStatusIndicator.AutoSize = true;
+            lblStatusIndicator.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblStatusIndicator.Location = new Point(7, 60);
             lblStatusIndicator.Margin = new Padding(1, 0, 1, 0);
             lblStatusIndicator.Name = "lblStatusIndicator";
-            lblStatusIndicator.Size = new Size(26, 15);
+            lblStatusIndicator.Size = new Size(26, 16);
             lblStatusIndicator.TabIndex = 8;
             lblStatusIndicator.Text = "Idle";
             // 
