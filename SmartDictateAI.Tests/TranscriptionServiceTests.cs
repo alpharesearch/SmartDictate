@@ -401,6 +401,61 @@ namespace SmartDictateAI.Tests
             Assert.False(_service.IsDictationModeActive);
         }
 
+        [Fact]
+        public async Task StartRecordingAsync_FiresVisualStateListeningSilent()
+        {
+            // Arrange
+            var states = new List<DictationVisualState>();
+            _service.VisualStateChanged += (state) => states.Add(state);
+
+            // Act
+            var success = await _service.StartRecordingAsync(0);
+
+            // Assert
+            Assert.True(success);
+            Assert.Contains(DictationVisualState.ListeningSilent, states);
+            Assert.Equal(DictationVisualState.ListeningSilent, _service.CurrentVisualState);
+        }
+
+        [Fact]
+        public async Task DataAvailable_VADTriggersSpeech_FiresVisualStateSpeechDetected()
+        {
+            // Arrange
+            await _service.StartRecordingAsync(0);
+            var states = new List<DictationVisualState>();
+            _service.VisualStateChanged += (state) => states.Add(state);
+
+            // Trigger speech
+            _vadMock.ShouldHasSpeechReturn = true;
+            
+            // Frame buffer of VAD size (640 bytes)
+            var frame = new byte[640];
+
+            // Act
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+
+            // Assert
+            Assert.Contains(DictationVisualState.SpeechDetected, states);
+            Assert.Equal(DictationVisualState.SpeechDetected, _service.CurrentVisualState);
+        }
+
+        [Fact]
+        public async Task StopRecording_FiresVisualStateIdle()
+        {
+            // Arrange
+            await _service.StartRecordingAsync(0);
+            var states = new List<DictationVisualState>();
+            _service.VisualStateChanged += (state) => states.Add(state);
+
+            // Act
+            await _service.StopRecording();
+
+            // Assert
+            Assert.Contains(DictationVisualState.Idle, states);
+            Assert.Equal(DictationVisualState.Idle, _service.CurrentVisualState);
+        }
+
+
         public void Dispose()
         {
             _service.Dispose();

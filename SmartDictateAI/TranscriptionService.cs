@@ -27,6 +27,21 @@ namespace SmartDictateAI
         public event Action? SettingsUpdated;
         public event Action? ProcessingStarted;
         public event Action? ProcessingFinished;
+        public event Action<DictationVisualState>? VisualStateChanged;
+
+        private DictationVisualState _currentVisualState = DictationVisualState.Idle;
+        public DictationVisualState CurrentVisualState
+        {
+            get => _currentVisualState;
+            private set
+            {
+                if (_currentVisualState != value)
+                {
+                    _currentVisualState = value;
+                    VisualStateChanged?.Invoke(_currentVisualState);
+                }
+            }
+        }
 
         // --- Services ---
         private readonly ISettingsService _settingsService;
@@ -259,6 +274,7 @@ namespace SmartDictateAI
                             if (!_hasSpeechInCurrentChunk)
                             {
                                 OnDebugMessage("[VAD] >>> VAD TRIGGERED: Speech Detected with Gain! <<<");
+                                CurrentVisualState = DictationVisualState.SpeechDetected;
                             }
                             lastSpeechTime = DateTime.UtcNow;
                             silenceDetectedRecently = false;
@@ -356,10 +372,12 @@ namespace SmartDictateAI
                     _hasSpeechInCurrentChunk = false;
                     _loggedSilenceProcessThisChunk = false;
                     _loggedMaxDurationThisChunk = false;
+                    CurrentVisualState = DictationVisualState.ListeningSilent;
                 }
 
                 if (process)
                 {
+                    CurrentVisualState = DictationVisualState.Processing;
                     try
                     {
                         capturedChunkFile?.Flush();
@@ -411,6 +429,13 @@ namespace SmartDictateAI
                         streamToSend?.Dispose();
                         ProcessingFinished?.Invoke();
                     }
+
+                    if (isRecording)
+                    {
+                        CurrentVisualState = _hasSpeechInCurrentChunk ? 
+                            DictationVisualState.SpeechDetected : 
+                            DictationVisualState.ListeningSilent;
+                    }
                 }
                 else if (discardChunk)
                 {
@@ -440,6 +465,7 @@ namespace SmartDictateAI
             bool wasActuallyRecording = this.isRecording; // Capture current state
             this.isRecording = false;       // Set recording state to false immediately
             OnRecordingStateChanged(false); // Notify UI
+            CurrentVisualState = DictationVisualState.Processing;
 
             await WaitForCurrentTranscriptionToCompleteAsync();
 
@@ -580,6 +606,7 @@ namespace SmartDictateAI
             IsDictationModeActive = false;
             this._currentStopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
             this._dictationModeStopSignal?.TrySetResult(true); // Also signal dictation mode stop
+            CurrentVisualState = DictationVisualState.Idle;
             OnDebugMessage("[Audio] WaveSource_RecordingStopped - Signalled _currentStopProcessingTcs. Event EXITED.");
         }
 
@@ -707,6 +734,7 @@ namespace SmartDictateAI
             {
                 _audioCaptureService.StartRecording(deviceNumber, waveFormatForWhisper);
                 OnRecordingStateChanged(true);
+                CurrentVisualState = DictationVisualState.ListeningSilent;
                 return true;
             }
             catch (Exception ex)
@@ -716,6 +744,7 @@ namespace SmartDictateAI
                 _audioCaptureService.RecordingStopped -= WaveSource_RecordingStopped;
                 isRecording = false;
                 OnRecordingStateChanged(false);
+                CurrentVisualState = DictationVisualState.Idle;
                 return false;
             }
         }

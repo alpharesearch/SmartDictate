@@ -28,11 +28,11 @@ namespace SmartDictateAI
             {
             Idle, Calibrating, Listening, Processing, Error
             }
-        private Color idleColor = SystemColors.ControlDark; // Or a light gray
-        private Color listeningColor = Color.LightGreen;
-        private Color processingColor = Color.LightSkyBlue;
-        private Color errorColor = Color.LightCoral;
-        private Color calibratingColor = Color.LightYellow;
+        private Color idleColor = Color.FromArgb(240, 240, 240); // Sleek modern light gray
+        private Color listeningColor = Color.FromArgb(235, 245, 255); // Pastel blue
+        private Color processingColor = Color.FromArgb(255, 248, 230); // Pastel orange
+        private Color errorColor = Color.FromArgb(255, 235, 235); // Pastel red
+        private Color calibratingColor = Color.FromArgb(255, 255, 230); // Pastel yellow
 
         private System.Windows.Forms.Timer? _vramTimer;
         private List<PerformanceCounter> _vramCounters = new List<PerformanceCounter>();
@@ -52,6 +52,7 @@ namespace SmartDictateAI
             transcriptionService.SettingsUpdated += OnServiceSettingsUpdated;
             transcriptionService.ProcessingStarted += OnServiceProcessingStarted; // Subscribe
             transcriptionService.ProcessingFinished += OnServiceProcessingFinished; // Subscribe
+            transcriptionService.VisualStateChanged += TranscriptionService_VisualStateChanged;
 
             // Set initial UI state from settings
             cmbPromptSelect.DataSource = transcriptionService.Settings.PromptProfiles;
@@ -533,34 +534,76 @@ namespace SmartDictateAI
 
             string displayText = message;
             Color displayColor = idleColor;
+            Color textColor = Color.DimGray;
 
             switch (status)
                 {
                 case AppStatus.Idle:
                     displayText = string.IsNullOrWhiteSpace(message) ? "Ready" : message;
                     displayColor = idleColor;
+                    textColor = Color.DimGray;
                     break;
                 case AppStatus.Listening:
                     displayText = string.IsNullOrWhiteSpace(message) ? "Listening..." : message;
                     displayColor = listeningColor;
+                    textColor = Color.FromArgb(0, 102, 204);
                     break;
                 case AppStatus.Processing:
                     displayText = string.IsNullOrWhiteSpace(message) ? "Processing..." : message;
                     displayColor = processingColor;
+                    textColor = Color.FromArgb(230, 115, 0);
                     break;
                 case AppStatus.Error:
                     displayText = string.IsNullOrWhiteSpace(message) ? "Error" : message;
                     displayColor = errorColor;
+                    textColor = Color.FromArgb(204, 0, 0);
                     break;
                 case AppStatus.Calibrating:
                     displayText = string.IsNullOrWhiteSpace(message) ? "Calibrating..." : message;
                     displayColor = calibratingColor;
+                    textColor = Color.FromArgb(153, 115, 0);
                     break;
                 }
             lblStatusIndicator.Text = displayText;
             lblStatusIndicator.BackColor = displayColor;
-            lblStatusIndicator.ForeColor = displayColor.GetBrightness() < 0.5 ? Color.White : Color.Black; // Contrast for text
+            lblStatusIndicator.ForeColor = textColor;
             }
+
+        private void TranscriptionService_VisualStateChanged(DictationVisualState state)
+        {
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => TranscriptionService_VisualStateChanged(state)));
+                return;
+            }
+
+            switch (state)
+            {
+                case DictationVisualState.Idle:
+                    lblStatusIndicator.Text = "⚪ Ready";
+                    lblStatusIndicator.BackColor = Color.FromArgb(240, 240, 240);
+                    lblStatusIndicator.ForeColor = Color.DimGray;
+                    break;
+
+                case DictationVisualState.ListeningSilent:
+                    lblStatusIndicator.Text = "🎤 Listening...";
+                    lblStatusIndicator.BackColor = Color.FromArgb(235, 245, 255);
+                    lblStatusIndicator.ForeColor = Color.FromArgb(0, 102, 204);
+                    break;
+
+                case DictationVisualState.SpeechDetected:
+                    lblStatusIndicator.Text = "🔥 Speaking";
+                    lblStatusIndicator.BackColor = Color.FromArgb(235, 255, 240);
+                    lblStatusIndicator.ForeColor = Color.FromArgb(0, 153, 51);
+                    break;
+
+                case DictationVisualState.Processing:
+                    lblStatusIndicator.Text = "⏳ Processing Text...";
+                    lblStatusIndicator.BackColor = Color.FromArgb(255, 248, 230);
+                    lblStatusIndicator.ForeColor = Color.FromArgb(230, 115, 0);
+                    break;
+            }
+        }
 
         private bool activelyProcessingChunkInUI = false;
         private void OnServiceProcessingStarted()
@@ -634,6 +677,7 @@ namespace SmartDictateAI
                 transcriptionService.SettingsUpdated -= OnServiceSettingsUpdated;
                 transcriptionService.ProcessingStarted -= OnServiceProcessingStarted;
                 transcriptionService.ProcessingFinished -= OnServiceProcessingFinished;
+                transcriptionService.VisualStateChanged -= TranscriptionService_VisualStateChanged;
                 }
             if (globalHotkeyService != null)
                 {
