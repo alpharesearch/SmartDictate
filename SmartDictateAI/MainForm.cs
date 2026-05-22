@@ -1,4 +1,4 @@
-﻿// MainForm.cs
+// MainForm.cs
 using CommunityToolkit.HighPerformance;
 using System;
 using System.IO; // For Path
@@ -21,6 +21,7 @@ namespace SmartDictateAI
         private bool _isProofreadingClipboard = false;  // Prevent double-triggering
 
         private bool isInDictationModeCurrently = false; // UI flag for dictation mode
+        private bool isStoppingOrProcessingFinal = false; // UI flag to prevent overlap during stop processing
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
 
         private enum AppStatus
@@ -335,10 +336,14 @@ namespace SmartDictateAI
                 {
                 AppendToDebugOutput("[Dictation] Attempting to stop dictation mode...");
                 UpdateStatusIndicator(AppStatus.Processing, "Dictation Stopping...");
+                isStoppingOrProcessingFinal = true;
+                UpdateButtonStates();
                 await transcriptionService.StopDictationModeAsync();
+                isStoppingOrProcessingFinal = false;
                 isInDictationModeCurrently = false;
                 UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
                 AppendToDebugOutput("[Dictation] Dictation mode stopped.");
+                UpdateButtonStates();
                 // Optionally restore your main form if it was minimized
                 // if (this.WindowState == FormWindowState.Minimized) this.WindowState = FormWindowState.Normal;
                 // this.Activate();
@@ -678,6 +683,12 @@ namespace SmartDictateAI
         private bool isFormRecordingState = false; // Separate UI recording state
         private void OnServiceRecordingStateChanged(bool nowRecording)
             {
+            if (this.InvokeRequired)
+                {
+                this.Invoke(new Action<bool>(OnServiceRecordingStateChanged), nowRecording);
+                return;
+                }
+
             isFormRecordingState = nowRecording; // Update UI state
             if (nowRecording)
                 {
@@ -687,7 +698,15 @@ namespace SmartDictateAI
                 }
             else
                 {
-                if (!activelyProcessingChunkInUI)
+                if (isInDictationModeCurrently)
+                    {
+                    if (!isStoppingOrProcessingFinal)
+                        {
+                        isInDictationModeCurrently = false;
+                        UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
+                        }
+                    }
+                else if (!activelyProcessingChunkInUI)
                     {
                     UpdateStatusIndicator(AppStatus.Idle);
                     }
@@ -743,15 +762,25 @@ namespace SmartDictateAI
                 this.Invoke(new Action(UpdateButtonStates));
                 return;
                 }
-            btnStartStop.Enabled = true;
-            btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
+
+            if (isStoppingOrProcessingFinal)
+                {
+                btnStartStop.Enabled = false;
+                btnStartStop.Text = "Processing...";
+                }
+            else
+                {
+                btnStartStop.Enabled = true;
+                btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
+                }
+
             // Replace calibration button enable/disable with VAD sensitivity combobox
-            cmbVadSensitivity.Enabled = !isFormRecordingState;
-            btnModelSettings.Enabled = !isFormRecordingState; // Model
-            btnMicInput.Enabled = !isFormRecordingState; // Mic
+            cmbVadSensitivity.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal;
+            btnModelSettings.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal; // Model
+            btnMicInput.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal; // Mic
 
             // Copy button states
-            if (!isFormRecordingState) // Only enable copy buttons when not recording
+            if (!isFormRecordingState && !isStoppingOrProcessingFinal) // Only enable copy buttons when not recording and not stopping/processing
                 {
                 btnCopyRawText.Enabled = !string.IsNullOrEmpty(transcriptionService.LastRawFilteredText);
                 btnCopyLLMText.Enabled = transcriptionService.WasLastProcessingWithLLM &&
@@ -868,10 +897,28 @@ namespace SmartDictateAI
                 }
             else
                 {
-                AppendToDebugOutput("[Audio] Stop recording button clicked.");
-                UpdateStatusIndicator(AppStatus.Processing, "Stopping..."); // Indicate stopping is a form of processing
-                Task stopTask = transcriptionService.StopRecording();
-                await stopTask;
+                if (isInDictationModeCurrently)
+                    {
+                    AppendToDebugOutput("[Dictation] Stop dictation mode button clicked.");
+                    UpdateStatusIndicator(AppStatus.Processing, "Dictation Stopping...");
+                    isStoppingOrProcessingFinal = true;
+                    UpdateButtonStates();
+                    await transcriptionService.StopDictationModeAsync();
+                    isStoppingOrProcessingFinal = false;
+                    isInDictationModeCurrently = false;
+                    UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
+                    AppendToDebugOutput("[Dictation] Dictation mode stopped.");
+                    }
+                else
+                    {
+                    AppendToDebugOutput("[Audio] Stop recording button clicked.");
+                    UpdateStatusIndicator(AppStatus.Processing, "Stopping..."); // Indicate stopping is a form of processing
+                    isStoppingOrProcessingFinal = true;
+                    UpdateButtonStates();
+                    Task stopTask = transcriptionService.StopRecording();
+                    await stopTask;
+                    isStoppingOrProcessingFinal = false;
+                    }
                 UpdateButtonStates();
                 // RecordingStateChanged event will update isFormRecordingState and button text
                 // Full transcription will be raised by FullTranscriptionReady event

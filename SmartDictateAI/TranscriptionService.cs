@@ -577,6 +577,7 @@ namespace SmartDictateAI
                 OnDebugMessage($"[Audio] NAudio stop exception: {e.Exception.Message}");
             }
 
+            IsDictationModeActive = false;
             this._currentStopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
             this._dictationModeStopSignal?.TrySetResult(true); // Also signal dictation mode stop
             OnDebugMessage("[Audio] WaveSource_RecordingStopped - Signalled _currentStopProcessingTcs. Event EXITED.");

@@ -387,6 +387,20 @@ namespace SmartDictateAI.Tests
             }
         }
 
+        [Fact]
+        public async Task StartDictationModeAsync_StopRecordingDirectly_ResetsDictationModeActive()
+        {
+            // Arrange
+            await _service.StartDictationModeAsync(0);
+            Assert.True(_service.IsDictationModeActive);
+
+            // Act
+            await _service.StopRecording();
+
+            // Assert
+            Assert.False(_service.IsDictationModeActive);
+        }
+
         public void Dispose()
         {
             _service.Dispose();
