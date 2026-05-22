@@ -1,4 +1,4 @@
-﻿﻿// TranscriptionService.cs
+// TranscriptionService.cs
 using Microsoft.Extensions.Configuration;
 using NAudio.Wave;
 using System;
@@ -12,17 +12,13 @@ using System.Threading.Tasks;
 using Whisper.net;
 using LLama; // Core LLamaSharp
 using LLama.Common;
-using System.Xml; // For ModelParams, InferenceParams
 using System.Reflection;
-using WebRtcVadSharp; // NEW: use the library directly
-
-// using LLama.Abstractions; // If using interfaces like ILLamaExecutor
-// using SmartDictateAI; // If AppSettings is in a separate file in this namespace
+using SmartDictateAI.Services;
 
 namespace SmartDictateAI
+{
+    public class TranscriptionService : IDisposable
     {
-    public class TranscriptionService : IDisposable // Consider IAsyncDisposable
-        {
         // --- Events for UI Updates ---
         public event Action<string, string>? SegmentTranscribed; // (timestampedText, rawText)
         public event Action<string>? FullTranscriptionReady;
@@ -32,11 +28,17 @@ namespace SmartDictateAI
         public event Action? ProcessingStarted;
         public event Action? ProcessingFinished;
 
+        // --- Services ---
+        private readonly ISettingsService _settingsService;
+        private readonly IVadService _vadService;
+        private readonly IWhisperService _whisperService;
+        private readonly ILLMService _llmService;
+        private readonly IAudioCaptureService _audioCaptureService;
+
         // --- State Fields ---
         private bool _hasSpeechInCurrentChunk = false;
         private readonly object _audioStreamLock = new object();
         private bool isRecording = false;
-        private WaveInEvent? waveSource = null;
         private MemoryStream? currentAudioChunkStream = null;
         private WaveFileWriter? chunkWaveFile = null;
         private DateTime chunkStartTime = DateTime.MinValue;
@@ -50,17 +52,9 @@ namespace SmartDictateAI
         public bool WasLastProcessingWithLLM { get; set; } = false; // To know if LLM text is valid
         private bool _loggedSilenceProcessThisChunk = false;
         private bool _loggedMaxDurationThisChunk = false;
-        // --- LLamaSharp Specific ---
-        private readonly object _llmInitLock = new object();
-        private LLamaWeights? llmModelWeights = null;
-        private LLamaContext? llmContext = null;
-        // Using StatelessExecutor as it's simpler for this kind of one-off processing per chunk
-        // If you needed conversational context, ChatSession or InteractiveExecutor would be better.
-        private StatelessExecutor? llmExecutor = null;
 
         // --- Whisper & App Settings ---
-        private string currentWhisperModelPath; // Renamed for clarity
-        private WhisperFactory? whisperFactoryInstance = null;
+        private string currentWhisperModelPath = string.Empty;
         private readonly WaveFormat waveFormatForWhisper = new WaveFormat(16000, 16, 1);
 
         public AppSettings Settings { get; private set; } = new AppSettings();
@@ -71,30 +65,36 @@ namespace SmartDictateAI
         public bool IsDictationModeActive { get; private set; } = false;
         private TaskCompletionSource<bool>? _dictationModeStopSignal;
 
-        // --- WebRtcVadSharp integration ---
-        private WebRtcVad? _vad;
         private List<byte> _vadAudioBuffer = new List<byte>();
         private const int VAD_FRAME_BYTES = 640;
 
-        public TranscriptionService()
+        // --- Constructors ---
+        public TranscriptionService() : this(
+            new SettingsService(),
+            new VadService(),
+            new WhisperService(),
+            new LLMService(),
+            new AudioCaptureService())
         {
+        }
+
+        public TranscriptionService(
+            ISettingsService settingsService,
+            IVadService vadService,
+            IWhisperService whisperService,
+            ILLMService llmService,
+            IAudioCaptureService audioCaptureService)
+        {
+            _settingsService = settingsService;
+            _vadService = vadService;
+            _whisperService = whisperService;
+            _llmService = llmService;
+            _audioCaptureService = audioCaptureService;
+
             LoadAppSettings();
             currentWhisperModelPath = Settings.ModelFilePath;
 
-            try
-            {
-                _vad = new WebRtcVad() { OperatingMode = (OperatingMode)Settings.VadMode };
-                OnDebugMessage($"[VAD] VAD initialized in mode {Settings.VadMode}.");
-            }
-            catch (Exception ex)
-            {
-                // LOG THE FULL EXCEPTION HERE TO SEE THE ERROR
-                OnDebugMessage($"[VAD] VAD initialization failed: {ex.Message}");
-                if (ex.InnerException != null)
-                    OnDebugMessage($"[App] Inner Error: {ex.InnerException.Message}");
-
-                _vad = null;
-            }
+            _vadService.Initialize(Settings.VadMode, OnDebugMessage);
         }
 
         private void OnDebugMessage(string message) => DebugMessageGenerated?.Invoke(message);
@@ -105,90 +105,23 @@ namespace SmartDictateAI
 
         public void LoadAppSettings()
         {
-            OnDebugMessage("[Settings] Loading application settings...");
-
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile(appSettingsFilePath, optional: true, reloadOnChange: false);
-
-            IConfigurationRoot configurationRoot = builder.Build();
-            var settingsSection = configurationRoot.GetSection("AppSettings");
-
-            if (settingsSection.Exists())
-            {
-                // IMPORTANT: reset list so binder doesn't append.
-                Settings.PromptProfiles = new List<PromptProfile>();
-
-                settingsSection.Bind(Settings);
-
-                // If file has no profiles, inject defaults
-                Settings.EnsureDefaultPromptProfiles();
-
-                OnDebugMessage($"[VAD] Loaded Whisper Model: {Settings.ModelFilePath}, LLM Model: {Settings.LocalLLMModelPath}, VAD Mode: {Settings.VadMode}, Mic: {Settings.SelectedMicrophoneDevice}");
-            }
-            else
-            {
-                OnDebugMessage($"[Settings] '{appSettingsFilePath}' not found. Using/Creating defaults.");
-                Settings.EnsureDefaultPromptProfiles();
-                SaveAppSettings();
-            }
-
+            Settings = _settingsService.LoadSettings(appSettingsFilePath, OnDebugMessage);
             currentWhisperModelPath = Settings.ModelFilePath;
             OnSettingsUpdated();
         }
 
-
         public void SaveAppSettings()
-            {
-            OnDebugMessage("[Settings] Saving application settings...");
-            try
-                {
-                Settings.ModelFilePath = currentWhisperModelPath; // Whisper model
-
-                var configurationToSave = new
-                    {
-                    AppSettings = this.Settings
-                    };
-                string json = JsonSerializer.Serialize(configurationToSave, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(appSettingsFilePath, json);
-                OnDebugMessage($"[Settings] Settings saved to {Path.GetFullPath(appSettingsFilePath)}");
-                OnSettingsUpdated();
-                }
-            catch (Exception ex) { OnDebugMessage($"[Settings] Error saving app settings: {ex.Message}"); }
-            }
+        {
+            Settings.ModelFilePath = currentWhisperModelPath;
+            _settingsService.SaveSettings(appSettingsFilePath, Settings, OnDebugMessage);
+            OnSettingsUpdated();
+        }
 
         public async Task<bool> InitializeWhisperAsync()
-            {
-            if (whisperFactoryInstance != null)
-                return true;
-            if (string.IsNullOrWhiteSpace(currentWhisperModelPath) || !File.Exists(currentWhisperModelPath))
-                {
-                OnDebugMessage($"[Whisper] InitializeWhisperAsync: Whisper Model path invalid: {currentWhisperModelPath}");
-                return false;
-                }
-            OnDebugMessage($"[Whisper] Initializing Whisper with model: {currentWhisperModelPath}");
-            try
-                {
-                await DisposeWhisperResourcesAsync();
-                whisperFactoryInstance = WhisperFactory.FromPath(currentWhisperModelPath);
-                OnDebugMessage($"[Whisper] Factory ready | model={Path.GetFileName(currentWhisperModelPath)} | Arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
-                var assemblies = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name?.ToLowerInvariant());
+        {
+            return await _whisperService.InitializeAsync(currentWhisperModelPath, OnDebugMessage);
+        }
 
-                string backend = assemblies.Any(a => a != null && a.Contains("vulkan"))
-                    ? "Vulkan"
-                    : "CPU";
-
-                OnDebugMessage($"[Whisper] Backend={backend} | model={Path.GetFileName(currentWhisperModelPath)}");
-                OnDebugMessage("[Whisper] WhisperFactory initialized.");
-                return true;
-                }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"[Whisper] FATAL: Could not initialize Whisper.net: {ex.Message}");
-                whisperFactoryInstance = null;
-                return false;
-                }
-            }
         private void SaveDebugAudioChunk(MemoryStream stream, string prefix = "chunk")
         {
             try
@@ -222,56 +155,11 @@ namespace SmartDictateAI
             }
         }
 
-        private bool InitializeLLM()
-            {
-            lock (_llmInitLock)
-                {
-                if (llmExecutor != null)
-                    return true; // Or check llmModelWeights && llmContext
-
-                if (string.IsNullOrWhiteSpace(Settings.LocalLLMModelPath) || !File.Exists(Settings.LocalLLMModelPath))
-                    {
-                    OnDebugMessage($"[Settings] LLM Initialize: LocalLLMModelPath invalid: {Settings.LocalLLMModelPath}");
-                    return false;
-                    }
-                OnDebugMessage($"[Settings] Initializing LLamaSharp with model: {Settings.LocalLLMModelPath}");
-                try
-                    {
-                    DisposeLLMResourcesInternal(); // Dispose previous if any
-
-                    var parameters = new ModelParams(Settings.LocalLLMModelPath)
-                        {
-                        ContextSize = (uint)Settings.LLMContextSize,
-                        GpuLayerCount = Settings.UseGpu ? 99 : 0 // 99 for all layers to GPU if possible
-                        };
-                    llmModelWeights = LLamaWeights.LoadFromFile(parameters);
-
-                // llmContext = llmModelWeights.CreateContext(parameters); // This was an older way for context
-                // For StatelessExecutor, you don't always need to create a context separately this way
-                // The executor can manage it or you pass parameters directly to it if needed.
-                // Let's create the executor directly with weights and model params.
-                llmExecutor = new StatelessExecutor(llmModelWeights, parameters);
-
-                OnDebugMessage($"[LLM] Backend request | UseGpu={Settings.UseGpu} | GpuLayerCount={parameters.GpuLayerCount} | Arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
-                OnDebugMessage("[LLM] Initialized successfully.");
-                return true;
-                }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"[LLM] FATAL: [LLM] Could not initialize LLamaSharp: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
-                DisposeLLMResourcesInternal(); // Ensure cleanup on failure
-                return false;
-                }
-                }
-            }
-
         public async Task DisposeWhisperResourcesAsync()
-            {
-            OnDebugMessage("[Whisper] Disposing WhisperFactory (async).");
-            whisperFactoryInstance?.Dispose();
-            whisperFactoryInstance = null;
-            await Task.CompletedTask;
-            }
+        {
+            await _whisperService.DisposeResourcesAsync(OnDebugMessage);
+        }
+
         private void CleanupDebugAudioFolder()
         {
             try
@@ -290,37 +178,10 @@ namespace SmartDictateAI
             }
         }
 
-        private void DisposeLLMResourcesInternal() // Synchronous for now, can be made async if LLamaSharp uses IAsyncDisposable heavily
-            {
-            lock (_llmInitLock)
-                {
-                OnDebugMessage("[LLM] Disposing LLamaSharp internal resources.");
-                if (llmExecutor is IDisposable disposableExecutor)
-                    {
-                    disposableExecutor.Dispose();
-                    }
-                llmContext?.Dispose(); // If we were creating a context separately
-                llmModelWeights?.Dispose();
-                llmExecutor = null;
-                llmContext = null;
-                llmModelWeights = null;
-                }
-            }
-
         public async Task DisposeLLMResourcesAsync()
-            {
-            OnDebugMessage("[LLM] Disposing LLamaSharp resources (synchronously within async method for test)...");
-            if (llmModelWeights != null || llmExecutor != null)
-                {
-                DisposeLLMResourcesInternal(); // Call directly
-                OnDebugMessage("[LLM] LLamaSharp resources disposed state updated.");
-                }
-            else
-                {
-                OnDebugMessage("[LLM] LLamaSharp resources already null or not initialized for dispose.");
-                }
-            await Task.CompletedTask; // Keep it awaitable if needed elsewhere
-            }
+        {
+            await _llmService.DisposeResourcesAsync(OnDebugMessage);
+        }
 
         public async Task PreloadModelsAsync()
         {
@@ -332,7 +193,7 @@ namespace SmartDictateAI
                 {
                     if (Settings.ProcessWithLLM)
                     {
-                        InitializeLLM();
+                        _llmService.Initialize(Settings.LocalLLMModelPath, Settings.LLMContextSize, Settings.UseGpu, OnDebugMessage);
                     }
                 });
                 await Task.WhenAll(whisperTask, llmTask);
@@ -344,17 +205,16 @@ namespace SmartDictateAI
             }
         }
 
-
         private void StartNewChunk()
-            {
+        {
             try
-                {
+            {
                 chunkWaveFile?.Dispose();
-                }
+            }
             catch
-                {
+            {
                 // ignore disposal exceptions
-                }
+            }
             _loggedSilenceProcessThisChunk = false;
             _loggedMaxDurationThisChunk = false;
             currentAudioChunkStream = new MemoryStream();
@@ -367,6 +227,7 @@ namespace SmartDictateAI
             _vadAudioBuffer.Clear();
             _hasSpeechInCurrentChunk = false;
         }
+
         private async void WaveSource_DataAvailable(object? sender, WaveInEventArgs e)
         {
             lock (_audioStreamLock)
@@ -384,67 +245,28 @@ namespace SmartDictateAI
 
             try
             {
-                if (_vad != null)
-                {
-                    _vadAudioBuffer.AddRange(e.Buffer.Take(e.BytesRecorded));
+                _vadAudioBuffer.AddRange(e.Buffer.Take(e.BytesRecorded));
 
-                    while (_vadAudioBuffer.Count >= VAD_FRAME_BYTES)
+                while (_vadAudioBuffer.Count >= VAD_FRAME_BYTES)
+                {
+                    var rawFrame = _vadAudioBuffer.GetRange(0, VAD_FRAME_BYTES).ToArray();
+                    _vadAudioBuffer.RemoveRange(0, VAD_FRAME_BYTES);
+
+                    try
                     {
-                        var rawFrame = _vadAudioBuffer.GetRange(0, VAD_FRAME_BYTES).ToArray();
-                        _vadAudioBuffer.RemoveRange(0, VAD_FRAME_BYTES);
-
-                        // --- SOFTWARE GAIN FOR VAD ---
-                        // Convert bytes to 16-bit samples, amplify, and convert back
-                        byte[] amplifiedFrame = new byte[VAD_FRAME_BYTES];
-                        for (int i = 0; i < VAD_FRAME_BYTES; i += 2)
+                        if (_vadService.HasSpeech(rawFrame, Settings.VadGainMultiplier, OnDebugMessage))
                         {
-                            short sample = BitConverter.ToInt16(rawFrame, i);
-                            // Multiply and clamp to prevent digital clipping
-                            int boosted = (int)(sample * Settings.VadGainMultiplier);
-                            short clamped = (short)Math.Clamp(boosted, short.MinValue, short.MaxValue);
-
-                            byte[] bytes = BitConverter.GetBytes(clamped);
-                            amplifiedFrame[i] = bytes[0];
-                            amplifiedFrame[i + 1] = bytes[1];
-                        }
-
-                        // Inside WaveSource_DataAvailable, in the VAD while loop:
-                        int maxSample = 0;
-                        for (int i = 0; i < VAD_FRAME_BYTES; i += 2)
-                        {
-                            short s = BitConverter.ToInt16(rawFrame, i);
-                            int absSample = Math.Abs((int)s);
-                            if (absSample > maxSample) maxSample = absSample;
-                        }
-                        // Log the peak once every second or so to avoid spam
-                        //if (DateTime.UtcNow.Millisecond < 50)
-                        //{
-                        //   OnDebugMessage($"[VAD] Mic Peak: {maxSample} (Boosted: {maxSample * VAD_GAIN_MULTIPLIER})");
-                        //}
-
-                        try
-                        {
-                            // Use the AMPLIFIED frame for the VAD check
-                            if (_vad != null && _vad.HasSpeech(amplifiedFrame, SampleRate.Is16kHz, FrameLength.Is20ms))
+                            if (!_hasSpeechInCurrentChunk)
                             {
-                                if (!_hasSpeechInCurrentChunk)
-                                {
-                                    OnDebugMessage("[VAD] >>> VAD TRIGGERED: Speech Detected with Gain! <<<");
-                                }
-                                lastSpeechTime = DateTime.UtcNow;
-                                silenceDetectedRecently = false;
-                                speechInSeg = true;
-                                _hasSpeechInCurrentChunk = true;
+                                OnDebugMessage("[VAD] >>> VAD TRIGGERED: Speech Detected with Gain! <<<");
                             }
+                            lastSpeechTime = DateTime.UtcNow;
+                            silenceDetectedRecently = false;
+                            speechInSeg = true;
+                            _hasSpeechInCurrentChunk = true;
                         }
-                        catch (Exception ex) { OnDebugMessage($"[VAD] VAD processing error: {ex.Message}"); }
                     }
-                }
-                else
-                {
-                    // Fallback: If VAD failed to initialize, assume speech so we don't discard everything
-                    speechInSeg = true;
-                    _hasSpeechInCurrentChunk = true;
+                    catch (Exception ex) { OnDebugMessage($"[VAD] VAD processing error: {ex.Message}"); }
                 }
             }
             catch (Exception ex) { OnDebugMessage($"[VAD] VAD buffer error: {ex.Message}"); }
@@ -611,8 +433,9 @@ namespace SmartDictateAI
                 }
             }
         }
+
         private async void WaveSource_RecordingStopped(object? sender, StoppedEventArgs e)
-            {
+        {
             OnDebugMessage("[Audio] WaveSource_RecordingStopped - Event ENTERED.");
             bool wasActuallyRecording = this.isRecording; // Capture current state
             this.isRecording = false;       // Set recording state to false immediately
@@ -624,123 +447,96 @@ namespace SmartDictateAI
             MemoryStream? finalActiveStream = this.currentAudioChunkStream;
             WaveFileWriter? finalFile = this.chunkWaveFile;
 
-            // Null out class fields so new recordings (if any started immediately after, though unlikely)
-            // or any stray DataAvailable calls don't use these disposed/processed instances.
+            // Null out class fields so new recordings
             this.currentAudioChunkStream = null;
             this.chunkWaveFile = null;
 
-            // Dispose the NAudio WaveInEvent source first
-            if (sender is WaveInEvent ws)
-                {
-                OnDebugMessage("[Audio] WaveSource_RecordingStopped - Unsubscribing NAudio events.");
-                ws.DataAvailable -= WaveSource_DataAvailable;
-                ws.RecordingStopped -= WaveSource_RecordingStopped; // Unsubscribe from itself
-                try
-                    {
-                        _ = Task.Run(() => ws.Dispose());
-                        OnDebugMessage("[Audio] WaveSource_RecordingStopped - WaveInEvent sender disposal deferred to background task.");
-                    }
-                catch (Exception ex) { OnDebugMessage($"[Audio] Err disposing WaveInEvent: {ex.Message}"); }
-                }
-            // Ensure the class field for waveSource is also nulled if it was the sender
-            if (ReferenceEquals(sender, this.waveSource))
-                {
-                this.waveSource = null;
-                }
+            // Unsubscribe from events
+            _audioCaptureService.DataAvailable -= WaveSource_DataAvailable;
+            _audioCaptureService.RecordingStopped -= WaveSource_RecordingStopped;
 
             MemoryStream? streamToTranscribeThisFinalChunk = null;
             if (wasActuallyRecording && finalFile != null && finalActiveStream != null)
-                {
+            {
                 OnDebugMessage("[Whisper] WaveSource_RecordingStopped - Processing final audio chunk.");
                 try
-                    {
+                {
                     finalFile.Flush(); // Ensure all buffered data is written to finalActiveStream
                     OnDebugMessage($"[Audio] WaveSource_RecordingStopped - Final active stream length after flush: {finalActiveStream.Length}");
 
                     // Process even if slightly shorter than normal chunks, but not if effectively empty
-                    // Use a very small minimum, e.g., 0.05 seconds of audio data
                     if (_hasSpeechInCurrentChunk && finalActiveStream.Length > (this.waveFormatForWhisper.AverageBytesPerSecond / 20))
-                        {
+                    {
                         finalActiveStream.Position = 0; // Rewind the stream to be read from the beginning
                         streamToTranscribeThisFinalChunk = new MemoryStream();
                         await finalActiveStream.CopyToAsync(streamToTranscribeThisFinalChunk);
                         streamToTranscribeThisFinalChunk.Position = 0; // Rewind the new stream for transcription
                         OnDebugMessage($"[Whisper] WaveSource_RecordingStopped - Copied final chunk of {streamToTranscribeThisFinalChunk.Length} bytes for transcription.");
-                        }
-                    else
-                        {
-                        OnDebugMessage("[Audio] WaveSource_RecordingStopped - Final active stream was too short or contained no speech.");
-                        }
                     }
+                    else
+                    {
+                        OnDebugMessage("[Audio] WaveSource_RecordingStopped - Final active stream was too short or contained no speech.");
+                    }
+                }
                 catch (Exception ex) { OnDebugMessage($"[Whisper] Err flush/copy final chunk: {ex.Message}"); }
                 finally
-                    {
-                    // IMPORTANT: Dispose the WaveFileWriter. This will also dispose the
-                    // finalActiveStream it was writing to (MemoryStream in this case).
+                {
                     OnDebugMessage("[Audio] WaveSource_RecordingStopped - Disposing final WaveFileWriter (and its stream).");
                     try
-                        {
+                    {
                         finalFile.Dispose();
-                        }
-                    catch (Exception ex) { OnDebugMessage($"[App] Err disposing finalFile: {ex.Message}"); }
                     }
+                    catch (Exception ex) { OnDebugMessage($"[App] Err disposing finalFile: {ex.Message}"); }
                 }
-            // If finalFile was null (e.g., recording stopped before first DataAvailable after StartNewChunk),
-            // but finalActiveStream (the MemoryStream) existed, ensure it's disposed.
+            }
             else if (finalActiveStream != null && finalActiveStream.CanRead)
-                {
+            {
                 OnDebugMessage("[Audio] WaveSource_RecordingStopped - Disposing lingering finalActiveStream.");
                 try
-                    {
+                {
                     finalActiveStream.Dispose();
-                    }
-                catch { }
                 }
-
+                catch { }
+            }
 
             Task? transcriptionOfThisFinalChunkTask = null;
             if (wasActuallyRecording && streamToTranscribeThisFinalChunk != null && streamToTranscribeThisFinalChunk.Length > 0)
-                {
+            {
                 OnDebugMessage("[Whisper] WaveSource_RecordingStopped - Starting transcription for the final chunk.");
-                // No need to set activelyProcessingChunk = true here, as this is the end of a session,
-                // and no new DataAvailable events for this waveSource should be coming.
                 if (Settings.ShowDebugMessages)
                 {
                     SaveDebugAudioChunk(streamToTranscribeThisFinalChunk, "final_chunk");
                 }
                 transcriptionOfThisFinalChunkTask = TranscribeAudioChunkAsync(streamToTranscribeThisFinalChunk, this.IsDictationModeActive);
-                // currentTranscriptionTask = transcriptionOfThisFinalChunkTask; // Update global tracker if needed by Form1's Q
 
                 try
-                    {
+                {
                     await transcriptionOfThisFinalChunkTask; // Wait for THIS final transcription
                     OnDebugMessage("[Whisper] WaveSource_RecordingStopped - Transcription of this final chunk completed.");
-                    }
+                }
                 catch (Exception ex) { OnDebugMessage($"[App] Err awaiting FINAL transcription task: {ex.Message}"); }
-                // No finally block to reset activelyProcessingChunk here as it's the end of the line for this path
-                }
+            }
             else if (wasActuallyRecording)
-                {
+            {
                 OnDebugMessage("[Whisper] WaveSource_RecordingStopped - No substantial final audio chunk to transcribe.");
-                }
+            }
 
-            // If streamToTranscribeThisFinalChunk was created but not used (e.g. too short)
             if (transcriptionOfThisFinalChunkTask == null && streamToTranscribeThisFinalChunk != null && streamToTranscribeThisFinalChunk.CanRead)
-                {
+            {
                 OnDebugMessage("[Whisper] WaveSource_RecordingStopped - Disposing unused streamToTranscribeThisFinalChunk.");
                 try
-                    {
+                {
                     streamToTranscribeThisFinalChunk.Dispose();
-                    }
-                catch { }
                 }
+                catch { }
+            }
 
             // --- Display Full Text (from all chunks in the session) and Signal Completion ---
             if (wasActuallyRecording)
-                {
+            {
                 string rawFilteredFullText;
                 lock (this.currentSessionTranscribedText) // Access with lock
-                    {
+                {
                     var knownPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "[BLANK_AUDIO]", "(silence)", "[ Silence ]", "...", "[INAUDIBLE]", "[MUSIC PLAYING]", "[SOUND]", "[CLICK]" };
                     var segmentsToUse = this.currentSessionTranscribedText
                         .Select(segment => segment.Trim())
@@ -750,7 +546,7 @@ namespace SmartDictateAI
                             !(trimmedSegment.StartsWith("[") && trimmedSegment.EndsWith("]") && trimmedSegment.Length <= 25))
                         .ToList();
                     rawFilteredFullText = string.Join(" ", segmentsToUse).Trim();
-                    }
+                }
 
                 this.LastRawFilteredText = rawFilteredFullText; // Store for copy button
                 this.WasLastProcessingWithLLM = false;
@@ -759,62 +555,51 @@ namespace SmartDictateAI
                 string finalTextToDisplay = $"--- RAW Transcription ---{Environment.NewLine}{rawFilteredFullText}";
 
                 if (this.Settings.ProcessWithLLM && !string.IsNullOrWhiteSpace(rawFilteredFullText))
-                    {
+                {
                     OnDebugMessage("[LLM] WaveSource_RecordingStopped: Attempting LLM processing for the full text...");
-                    string refinedText = await ProcessTextWithLLMAsync(rawFilteredFullText); // Assuming ProcessTextWithLLMAsync is instance method
+                    string refinedText = await ProcessTextWithLLMAsync(rawFilteredFullText);
                     this.LastLLMProcessedText = refinedText;
                     this.WasLastProcessingWithLLM = true;
                     OnDebugMessage("[LLM] WaveSource_RecordingStopped: LLM processing complete.");
                     finalTextToDisplay += $"{Environment.NewLine}{Environment.NewLine}--- LLM Refined ---{Environment.NewLine}{refinedText}";
-                    }
+                }
                 else if (this.Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(rawFilteredFullText))
-                    {
+                {
                     OnDebugMessage("[LLM] WaveSource_RecordingStopped: Full text is empty after filtering, skipping LLM.");
                     finalTextToDisplay += $"{Environment.NewLine}{Environment.NewLine}[No speech detected to refine with LLM]";
-                    }
-
-                OnFullTranscriptionReady(finalTextToDisplay); // Raise event with combined display text
                 }
+
+                OnFullTranscriptionReady(finalTextToDisplay);
+            }
 
             if (e.Exception != null)
-                {
+            {
                 OnDebugMessage($"[Audio] NAudio stop exception: {e.Exception.Message}");
-                }
+            }
 
             this._currentStopProcessingTcs?.TrySetResult(true); // Signal completion to StopRecording() caller
             this._dictationModeStopSignal?.TrySetResult(true); // Also signal dictation mode stop
             OnDebugMessage("[Audio] WaveSource_RecordingStopped - Signalled _currentStopProcessingTcs. Event EXITED.");
-            // If not exiting, UI needs to be re-enabled / instructions printed
-            // This is handled by MainForm awaiting the task from StopRecording() and then calling its own UI updates
-            }
+        }
+
         private async Task TranscribeAudioChunkAsync(Stream audioStream, bool isDictationModeChunk)
-            {
+        {
             OnDebugMessage($"[Whisper] TranscribeAudioChunkAsync - Stream length: {audioStream.Length}");
-            if (whisperFactoryInstance == null)
-                {
+            if (!_whisperService.IsInitialized)
+            {
                 OnDebugMessage("[Whisper] ERROR: WhisperFactory not initialized.");
                 audioStream.Dispose();
                 return;
-                }
+            }
             if (audioStream.Length < (waveFormatForWhisper.AverageBytesPerSecond / 10))
-                {
+            {
                 OnDebugMessage("[Whisper] Audio chunk too short.");
                 audioStream.Dispose();
                 return;
-                }
+            }
 
             try
-                {
-                await Task.Yield();
-                OnDebugMessage("[Whisper] Processing audio chunk with Whisper...");
-                // --- PERF: Whisper timing / RTF ---
-                double audioSeconds = (double)audioStream.Length / waveFormatForWhisper.AverageBytesPerSecond;
-                var swWhisper = System.Diagnostics.Stopwatch.StartNew();
-                int segCount = 0;
-
-                OnDebugMessage($"[Whisper] Begin | audio={audioSeconds:F2}s | streamBytes={audioStream.Length}");
-                List<string> chunkSegmentsRaw = new List<string>();
-
+            {
                 string promptText = string.Empty;
                 if (Settings.MaintainContextAcrossChunks)
                 {
@@ -829,43 +614,24 @@ namespace SmartDictateAI
                     }
                 }
 
-                var builder = whisperFactoryInstance.CreateBuilder()
-                    .WithLanguage("auto")
-                    .WithNoSpeechThreshold(0.6f);
-
-                if (!string.IsNullOrWhiteSpace(promptText))
-                    builder = builder.WithPrompt(promptText);
-
-                using var chunkProcessor = builder.Build();
-
-                await foreach (var segment in chunkProcessor.ProcessAsync(audioStream))
-                {
-                    string timestampedText = $"[{segment.Start.TotalSeconds:F2}s -> {segment.End.TotalSeconds:F2}s]: {segment.Text}";
-                    string rawText = segment.Text.Trim();
-                    // Normal mode: accumulate for full transcription display
-                    OnSegmentTranscribed(timestampedText, rawText); // For real-time UI update
-                    chunkSegmentsRaw.Add(rawText);
-                    segCount++;
-                }
+                var chunkSegmentsRaw = await _whisperService.TranscribeAsync(audioStream, promptText, OnSegmentTranscribed, OnDebugMessage);
                 if (chunkSegmentsRaw.Count > 0)
+                {
                     lock (currentSessionTranscribedText)
-                        {
+                    {
                         currentSessionTranscribedText.AddRange(chunkSegmentsRaw);
-                        }
-
-                swWhisper.Stop();
-                double rtf = swWhisper.Elapsed.TotalSeconds / Math.Max(audioSeconds, 0.01);
-                OnDebugMessage($"[Whisper] Done | proc={swWhisper.Elapsed.TotalSeconds:F2}s | RTF={rtf:F2}x | segs={segCount} | {(rtf <= 1.0 ? "✅ realtime+" : "⚠️ slower")}");
-                }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"[Whisper] Transcription error in chunk: {ex.Message}");
-                }
-            finally
-                {
-                await audioStream.DisposeAsync();
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"[Whisper] Transcription error in chunk: {ex.Message}");
+            }
+            finally
+            {
+                await audioStream.DisposeAsync();
+            }
+        }
 
         public async Task<string> ProcessTextWithLLMAsync(string inputText, string setSystemPrompt = "", string setUserPrompt = "")
         {
@@ -873,185 +639,57 @@ namespace SmartDictateAI
                 return inputText;
             if (!Settings.ProcessWithLLM)
                 return inputText;
-            var systemPrompt = (setSystemPrompt == "") ? Settings.LLMSystemPrompt : setSystemPrompt;
-            var userPrompt = (setUserPrompt == "") ? Settings.LLMUserPrompt : setUserPrompt;
-            if (llmExecutor == null)
-                {
-                if (!InitializeLLM())
-                    {
-                    OnDebugMessage("[LLM] LLM could not be initialized. Skipping LLM processing.");
-                    return inputText;
-                    }
-                if (llmExecutor == null)
-                    {
-                    OnDebugMessage("[LLM] LLM Executor still null after init attempt. Skipping.");
-                    return inputText;
-                    } // Should not happen if InitializeLLM returns true
-                }
 
-            OnDebugMessage("[LLM] Sending text to LLamaSharp for processing..." + inputText);
-            var outputBuffer = new StringBuilder();
-            try
-                {
+            return await _llmService.RefineTextAsync(inputText, Settings, setSystemPrompt, setUserPrompt, OnDebugMessage);
+        }
 
-                string templateToUse;
-                List<string> autoAntiPrompts = new List<string>();
-                string modelFileLower = Settings.LocalLLMModelPath.ToLowerInvariant();
-
-                if (!string.IsNullOrWhiteSpace(Settings.LLMPromptTemplate))
-                {
-                    OnDebugMessage("[LLM] Using manual LLMPromptTemplate override.");
-                    templateToUse = Settings.LLMPromptTemplate;
-                }
-                else if (modelFileLower.Contains("gemma"))
-                {
-                    templateToUse = "<start_of_turn>user\n{0}\n\n{1}\n\n{2}<end_of_turn>\n<start_of_turn>model\n";
-                    autoAntiPrompts.AddRange(new[] { "<end_of_turn>", "<eos>" });
-                }
-                else if (modelFileLower.Contains("llama-3") || modelFileLower.Contains("llama3"))
-                {
-                    templateToUse = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{0}<|eot_id|><|start_header_id|>user<|end_header_id|>\n{1}\n\n{2}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n";
-                    autoAntiPrompts.AddRange(new[] { "<|eot_id|>", "<|end_of_text|>" });
-                }
-                else if (modelFileLower.Contains("llama-2") || modelFileLower.Contains("llama2"))
-                {
-                    templateToUse = "[INST] <<SYS>>\n{0}\n<</SYS>>\n\n{1}\n\n{2} [/INST]";
-                    autoAntiPrompts.AddRange(new[] { "[/INST]", "<<SYS>>" });
-                }
-                else // Default fallback to ChatML (Qwen, etc)
-                {
-                    templateToUse = "<|im_start|>system\n{0}<|im_end|>\n<|im_start|>user\n{1}\n\n{2}<|im_end|>\n<|im_start|>assistant\n";
-                    autoAntiPrompts.AddRange(new[] { "<|im_end|>", "<|im_start|>" });
-                }
-
-                string fullPrompt = string.Format(templateToUse, systemPrompt, userPrompt, inputText);
-                uint actualSeedToUse;
-                if (Settings.LLMSeed == 0)
-                    {
-                    // Generate a random seed if setting is 0
-                    actualSeedToUse = (uint)Random.Shared.Next(); // Fixes duplicate seed generation
-                    OnDebugMessage($"[LLM] LLMSeed was 0, generated random seed for this inference: {actualSeedToUse}");
-                    }
-                else
-                    {
-                    actualSeedToUse = (uint)Settings.LLMSeed;
-                    OnDebugMessage($"[Settings] Using LLMSeed from settings: {actualSeedToUse}");
-                    }
-
-                // Combine auto-detected anti-prompts with any custom ones in JSON settings
-                var combinedAntiPrompts = autoAntiPrompts.Concat(Settings.LLMAntiPrompts ?? new List<string>()).Distinct().ToList();
-
-                var inferenceParams = new InferenceParams()
-                    {
-                    AntiPrompts = combinedAntiPrompts,
-                    MaxTokens = Settings.LLMMaxOutputTokens,
-                    SamplingPipeline = new LLama.Sampling.DefaultSamplingPipeline() // other pipelines, including custom ones, are possible
-                        {
-                        Seed = actualSeedToUse, // Pass the generated or settings-based seed
-                        Temperature = Settings.LLMTemperature, // Temperature also goes here
-                        }
-                    // Consider adding other parameters like TopK, TopP, MinP, RepeatPenalty from Settings
-                    // PenalizeRepeatLastNElements = 64, // Example
-                    // PenaltyRepeat = 1.1f,            // Example
-                    };
-                OnDebugMessage("[LLM] \nfullPrompt " + fullPrompt);
-                OnDebugMessage("[App] \ninferenceParams" + inferenceParams.ToString());
-
-
-                var swLlm = System.Diagnostics.Stopwatch.StartNew();
-                int tokCount = 0;
-
-                OnDebugMessage($"[LLM] Begin | ctx={Settings.LLMContextSize} | maxOut={Settings.LLMMaxOutputTokens} | gpuLayers={(Settings.UseGpu ? 99 : 0)}");
-
-                await foreach (var textPart in llmExecutor.InferAsync(fullPrompt, inferenceParams))
-                {
-                    outputBuffer.Append(textPart);
-                    tokCount++;
-
-                    // Optional: low-noise progress ping
-                    if (tokCount % 32 == 0)
-                    {
-                        double liveTps = tokCount / Math.Max(swLlm.Elapsed.TotalSeconds, 0.001);
-                        OnDebugMessage($"[LLM] ... {tokCount} tokens | {liveTps:F1} tok/s");
-                    }
-                }
-
-                swLlm.Stop();
-
-                var outText = outputBuffer.ToString();
-                double tps = tokCount / Math.Max(swLlm.Elapsed.TotalSeconds, 0.001);
-                OnDebugMessage($"[LLM] Done | streamParts={tokCount} | sec={swLlm.Elapsed.TotalSeconds:F2} | {tps:F1} tok/s-ish");
-                double cps = outText.Length / Math.Max(swLlm.Elapsed.TotalSeconds, 0.001);
-                OnDebugMessage($"[LLM] Done | outChars={outText.Length} | sec={swLlm.Elapsed.TotalSeconds:F2} | {cps:F0} chars/s");
-
-                // Clean up any leaked stop tokens from LLamaSharp's stream
-                string finalResult = outputBuffer.ToString().Trim();
-
-                foreach (var tag in combinedAntiPrompts)
-                {
-                    finalResult = finalResult.Replace(tag, string.Empty).Trim();
-                }
-
-                OnDebugMessage("[LLM] LLamaSharp processing successful. " + finalResult);
-                return finalResult;
-            }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"[LLM] Generic error during LLamaSharp processing: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
-                return inputText;
-                }
-            }
-
-        // NEW: Update VAD mode at runtime
         public void SetVadMode(int mode)
-            {
+        {
             try
-                {
+            {
                 if (mode < 0) mode = 0;
                 if (mode > 3) mode = 3;
                 Settings.VadMode = mode;
-                if (_vad != null)
-                    _vad.OperatingMode = (OperatingMode)mode;
-                //SaveAppSettings();
+                _vadService.SetMode(mode, OnDebugMessage);
                 OnSettingsUpdated();
-                OnDebugMessage($"[VAD] VAD mode updated to {mode}.");
-                }
-            catch (Exception ex)
-                {
-                OnDebugMessage($"[VAD] SetVadMode error: {ex.Message}");
-                }
             }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"[VAD] SetVadMode error: {ex.Message}");
+            }
+        }
 
         // --- Public Methods for Form1 to Call ---
         public async Task<bool> StartRecordingAsync(int deviceNumber)
-            {
+        {
             if (isRecording)
-                {
+            {
                 OnDebugMessage("[Audio] Already recording.");
                 return false;
-                }
-            if (WaveIn.DeviceCount == 0)
-                {
+            }
+            var availableMics = _audioCaptureService.GetAvailableMicrophones();
+            if (availableMics.Count == 0)
+            {
                 OnDebugMessage("[Audio] No microphone detected.");
                 return false;
-                }
-            if (deviceNumber < 0 || deviceNumber >= WaveIn.DeviceCount)
-                {
+            }
+            if (deviceNumber < 0 || deviceNumber >= availableMics.Count)
+            {
                 OnDebugMessage("[Audio] Invalid device number.");
                 deviceNumber = 0;
                 Settings.SelectedMicrophoneDevice = 0;
-                }
+            }
 
             if (!await InitializeWhisperAsync())
-                {
+            {
                 OnDebugMessage("[Whisper] Whisper init failed.");
                 return false;
-                }
+            }
 
-            if (llmExecutor == null && Settings.ProcessWithLLM) // Pre-initialize LLM in background so we don't delay the mic
-                {
-                _ = Task.Run(() => InitializeLLM());
-                }
+            if (!_llmService.IsInitialized && Settings.ProcessWithLLM) // Pre-initialize LLM in background so we don't delay the mic
+            {
+                _ = Task.Run(() => _llmService.Initialize(Settings.LocalLLMModelPath, Settings.LLMContextSize, Settings.UseGpu, OnDebugMessage));
+            }
 
             OnDebugMessage($"[Audio] Starting recording with mic [{deviceNumber}]...");
             lock (currentSessionTranscribedText)
@@ -1060,32 +698,45 @@ namespace SmartDictateAI
             }
             isRecording = true;
             StartNewChunk();
-            waveSource = new WaveInEvent { DeviceNumber = deviceNumber, WaveFormat = waveFormatForWhisper };
-            waveSource.DataAvailable += WaveSource_DataAvailable;
-            waveSource.RecordingStopped += WaveSource_RecordingStopped;
-            waveSource.StartRecording();
-            OnRecordingStateChanged(true);
-            return true;
+
+            _audioCaptureService.DataAvailable += WaveSource_DataAvailable;
+            _audioCaptureService.RecordingStopped += WaveSource_RecordingStopped;
+
+            try
+            {
+                _audioCaptureService.StartRecording(deviceNumber, waveFormatForWhisper);
+                OnRecordingStateChanged(true);
+                return true;
             }
+            catch (Exception ex)
+            {
+                OnDebugMessage($"[Audio] StartRecording failed: {ex.Message}");
+                _audioCaptureService.DataAvailable -= WaveSource_DataAvailable;
+                _audioCaptureService.RecordingStopped -= WaveSource_RecordingStopped;
+                isRecording = false;
+                OnRecordingStateChanged(false);
+                return false;
+            }
+        }
 
         public Task StopRecording()
+        {
+            if (!isRecording)
             {
-            if (!isRecording || waveSource == null)
-                {
-                OnDebugMessage("[Audio] Not recording or waveSource is null.");
+                OnDebugMessage("[Audio] Not recording.");
                 return Task.CompletedTask;
-                }
+            }
             OnDebugMessage("[Audio] StopRecording called externally (e.g., from UI).");
             if (_currentStopProcessingTcs == null || _currentStopProcessingTcs.Task.IsCompleted)
-                {
+            {
                 _currentStopProcessingTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                }
-            waveSource.StopRecording();
-            return _currentStopProcessingTcs.Task;
             }
+            _audioCaptureService.StopRecording();
+            return _currentStopProcessingTcs.Task;
+        }
 
         public async Task WaitForCurrentTranscriptionToCompleteAsync()
-            {
+        {
             var lastWaitLog = DateTime.MinValue;
 
             while (activelyProcessingChunk)
@@ -1099,65 +750,58 @@ namespace SmartDictateAI
             }
 
             if (currentTranscriptionTask != null && !currentTranscriptionTask.IsCompleted)
-                {
+            {
                 OnDebugMessage("[App] Waiting for ongoing transcription to complete...");
                 try
-                    {
+                {
                     await currentTranscriptionTask;
-                    }
-                catch { /* ignore */ }
                 }
+                catch { /* ignore */ }
             }
+        }
 
         public static List<(int Index, string Name)> GetAvailableMicrophones()
+        {
+            using (var tempCapture = new AudioCaptureService())
             {
-            var mics = new List<(int, string)>();
-            if (WaveIn.DeviceCount == 0)
-                return mics; // Return empty if no devices
-            for (int i = 0; i < WaveIn.DeviceCount; i++)
-                {
-                try
-                    {
-                    mics.Add((i, WaveIn.GetCapabilities(i).ProductName));
-                    }
-                catch { mics.Add((i, $"Err mic {i}")); }
-                }
-            return mics;
+                return tempCapture.GetAvailableMicrophones();
             }
+        }
 
         public bool SelectMicrophone(int deviceIndex)
-            {
+        {
             if (isRecording)
-                {
+            {
                 OnDebugMessage("[Audio] Cannot change mic while recording.");
                 return false;
-                }
-            if (WaveIn.DeviceCount > 0 && deviceIndex >= 0 && deviceIndex < WaveIn.DeviceCount) // Check DeviceCount > 0
-                {
+            }
+            var availableMics = _audioCaptureService.GetAvailableMicrophones();
+            if (availableMics.Count > 0 && deviceIndex >= 0 && deviceIndex < availableMics.Count)
+            {
                 if (Settings.SelectedMicrophoneDevice != deviceIndex)
-                    {
+                {
                     Settings.SelectedMicrophoneDevice = deviceIndex;
                     SaveAppSettings();
                     OnDebugMessage($"[Audio] Mic selected: [{deviceIndex}]");
                     OnSettingsUpdated();
-                    }
-                return true;
                 }
+                return true;
+            }
             OnDebugMessage($"[Audio] Invalid mic index: {deviceIndex} or no mics available.");
             return false;
-            }
+        }
 
         public async Task<bool> ChangeModelPathAsync(string newModelPath) // For Whisper model
-            {
+        {
             if (isRecording)
-                {
+            {
                 OnDebugMessage("[Whisper] Cannot change Whisper model while recording.");
                 return false;
-                }
+            }
             if (!string.IsNullOrWhiteSpace(newModelPath) && File.Exists(newModelPath))
-                {
+            {
                 if (currentWhisperModelPath != newModelPath)
-                    {
+                {
                     currentWhisperModelPath = newModelPath;
                     Settings.ModelFilePath = newModelPath;
                     SaveAppSettings();
@@ -1165,95 +809,83 @@ namespace SmartDictateAI
                     await DisposeWhisperResourcesAsync();
                     OnSettingsUpdated();
                     return true;
-                    }
+                }
                 OnDebugMessage("[Whisper] New Whisper model path is same as current.");
                 return true;
-                }
+            }
             OnDebugMessage("[Whisper] Invalid Whisper model path or file not found.");
             return false;
-            }
+        }
 
         public async Task<bool> ChangeLLMModelPathAsync(string newLLMModelPath)
-            {
+        {
             if (isRecording || activelyProcessingChunk)
-                {
+            {
                 OnDebugMessage("[LLM] Cannot change LLM model while busy.");
                 return false;
-                }
+            }
             if (!string.IsNullOrWhiteSpace(newLLMModelPath) && File.Exists(newLLMModelPath))
+            {
+                if (Settings.LocalLLMModelPath != newLLMModelPath || !_llmService.IsInitialized)
                 {
-                if (Settings.LocalLLMModelPath != newLLMModelPath || llmModelWeights == null)
-                    {
                     Settings.LocalLLMModelPath = newLLMModelPath;
                     SaveAppSettings();
                     OnDebugMessage($"[Settings] LLM model path updated: {Settings.LocalLLMModelPath}");
                     await DisposeLLMResourcesAsync();
                     OnSettingsUpdated();
                     return true;
-                    }
+                }
                 OnDebugMessage("[LLM] New LLM model path is same as current.");
                 return true;
-                }
+            }
             OnDebugMessage("[LLM] Invalid LLM model path or file not found.");
             return false;
-            }
+        }
 
         // --- IDisposable ---
         private bool disposedValue = false;
 
         protected virtual void Dispose(bool disposing)
-            {
+        {
             if (!disposedValue)
-                {
+            {
                 if (disposing)
-                    {
-                    // Dispose managed state (managed objects)
+                {
                     try
-                        {
-                        waveSource?.Dispose();
+                    {
                         chunkWaveFile?.Dispose();
                         currentAudioChunkStream?.Dispose();
-                        whisperFactoryInstance?.Dispose();
 
-                        // StatelessExecutor may not implement IDisposable in this LLama build.
-                        // Dispose it only if it actually implements IDisposable to avoid compile errors.
-                        if (llmExecutor is IDisposable disposableExecutor)
-                        {
-                            try { disposableExecutor.Dispose(); }
-                            catch { /* ignore dispose errors */ }
-                        }
+                        _settingsService.SaveSettings(appSettingsFilePath, Settings, OnDebugMessage);
 
-                        llmContext?.Dispose();
-                        llmModelWeights?.Dispose();
+                        _audioCaptureService.Dispose();
+                        _whisperService.Dispose();
+                        _llmService.Dispose();
+                        _vadService.Dispose();
 
-                        // Dispose VAD
-                        try { _vad?.Dispose(); } catch { }
                         CleanupDebugAudioFolder();
-                        llmExecutor = null;
-                        llmContext = null;
-                        llmModelWeights = null;
-                        }
-                    catch { /* Optionally log or ignore */ }
+                    }
+                    catch { }
                 }
-                // Free unmanaged resources (if any) here
 
                 disposedValue = true;
-                }
             }
+        }
 
         public void Dispose()
-            {
+        {
             Dispose(true);
             GC.SuppressFinalize(this);
-            }
+        }
+
         // --- Public methods for Dictation Mode ---
         public async Task<bool> StartDictationModeAsync(int deviceNumber)
-            {
+        {
             if (isRecording)
-                {
+            {
                 OnDebugMessage("[Audio] Already recording (normal or dictation).");
                 return false;
-                }
+            }
 
             IsDictationModeActive = true; // Set mode
             _dictationModeStopSignal = new TaskCompletionSource<bool>(); // For awaiting stop of this mode
@@ -1261,32 +893,32 @@ namespace SmartDictateAI
             // Use the same StartRecordingAsync logic but it will know it's dictation mode
             bool success = await StartRecordingAsync(deviceNumber);
             if (!success)
-                {
+            {
                 IsDictationModeActive = false; // Revert if start failed
                 _dictationModeStopSignal.TrySetResult(false); // Signal failure
-                }
-            return success;
             }
+            return success;
+        }
 
         public async Task StopDictationModeAsync()
-            {
+        {
             if (!isRecording || !IsDictationModeActive)
-                {
+            {
                 OnDebugMessage("[App] Not in active dictation mode to stop.");
                 IsDictationModeActive = false; // Ensure it's false
                 _dictationModeStopSignal?.TrySetResult(true); // Signal if anyone is waiting
                 return;
-                }
+            }
 
             OnDebugMessage("[App] Stopping dictation mode...");
             await StopRecording(); // This will use the _currentStopProcessingTcs
 
             if (_dictationModeStopSignal != null)
-                {
+            {
                 await _dictationModeStopSignal.Task; // Wait for RecordingStopped to signal this TCS
-                }
+            }
             IsDictationModeActive = false; // Ensure final state
             OnDebugMessage("[App] Dictation mode fully stopped.");
-            }
         }
     }
+}
