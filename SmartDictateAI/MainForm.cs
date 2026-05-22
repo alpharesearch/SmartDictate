@@ -61,11 +61,6 @@ namespace SmartDictateAI
 
 
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
-            chkDebug.Checked = transcriptionService.Settings.ShowDebugMessages;
-            chkLLM.Checked = transcriptionService.Settings.ProcessWithLLM;
-
-            // Wire up VAD sensitivity combobox (assume it exists in designer as cmbVadSensitivity)
-            cmbVadSensitivity.SelectedIndexChanged += cmbVadSensitivity_SelectedIndexChanged;
 
             globalHotkeyService = new GlobalHotkeyService(this.Handle);
             globalHotkeyService.HotKeyPressed += OnGlobalHotKeyPressed;
@@ -631,20 +626,7 @@ namespace SmartDictateAI
             lblDictateInstruction.Text = $"{transcriptionService.Settings.DictationHotkeyModifiers} + {transcriptionService.Settings.DictationHotkeyKey} \r\nto dictate cursor.";
             lblProofreadInstruction.Text = $"{transcriptionService.Settings.ProofreadHotkeyModifiers} + {transcriptionService.Settings.ProofreadHotkeyKey} \r\nto proofreads clipboard locally.";
 
-            // Populate VAD sensitivity combobox
-            try
-                {
-                cmbVadSensitivity.Items.Clear();
-                cmbVadSensitivity.Items.AddRange(new string[] { "Low (0)", "Medium (1)", "High (2)", "Max (3)" });
-                int idx = transcriptionService.Settings.VadMode;
-                if (idx < 0 || idx > 3)
-                    idx = 3;
-                cmbVadSensitivity.SelectedIndex = idx;
-                }
-            catch (Exception ex)
-                {
-                AppendToDebugOutput("[VAD] Error populating VAD combo: " + ex.Message);
-                }
+
 
             InitializeVramMonitor();
 
@@ -819,10 +801,8 @@ namespace SmartDictateAI
                 btnStartStop.Text = isFormRecordingState ? "Stop Recording" : "Start Recording";
                 }
 
-            // Replace calibration button enable/disable with VAD sensitivity combobox
-            cmbVadSensitivity.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal;
-            btnModelSettings.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal; // Model
-            btnMicInput.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal; // Mic
+            // Enable/disable Settings button
+            btnSettings.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal;
 
             // Copy and rerun LLM button states
             if (!isFormRecordingState && !isStoppingOrProcessingFinal) // Only enable copy and rerun LLM buttons when not recording and not stopping/processing
@@ -883,17 +863,6 @@ namespace SmartDictateAI
             textBoxOutput.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gbControl.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gbDebug.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-
-            // Keep combobox in sync if present
-            try
-                {
-                int idx = transcriptionService.Settings.VadMode;
-                if (idx < 0 || idx > 3)
-                    idx = 3;
-                if (cmbVadSensitivity.SelectedIndex != idx)
-                    cmbVadSensitivity.SelectedIndex = idx;
-                }
-            catch { }
             }
 
         private void PopulateMicrophoneList() // For a ComboBox or ListBox later
@@ -903,16 +872,12 @@ namespace SmartDictateAI
                 {
                 MessageBox.Show("No microphones found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 btnStartStop.Enabled = false; // Disable record button
-                // Replace calibration button references with VAD combobox
-                cmbVadSensitivity.Enabled = false;
-                btnMicInput.Enabled = false; // Disable mic select
+                btnSettings.Enabled = false; // Disable Settings button
                 }
             else
                 {
                 btnStartStop.Enabled = true;
-                // Enable VAD combobox
-                cmbVadSensitivity.Enabled = true;
-                btnMicInput.Enabled = true;
+                btnSettings.Enabled = true;
                 AppendToDebugOutput($"[Audio] Populated mics. Current in settings: {transcriptionService.Settings.SelectedMicrophoneDevice}");
                 }
             }
@@ -977,143 +942,64 @@ namespace SmartDictateAI
 
         // MainForm.cs
 
-        private async void btnModelSettings_Click(object sender, EventArgs e) // btnChangeModel_Click (now for both)
+        private async void btnSettings_Click(object sender, EventArgs e)
             {
             if (isFormRecordingState)
                 {
-                MessageBox.Show("Stop recording before changing models.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Stop recording before opening Settings.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
                 }
 
-            using (ModelSelectionForm modelForm = new ModelSelectionForm(
-                transcriptionService.Settings.ModelFilePath,
-                transcriptionService.Settings.LocalLLMModelPath))
+            using (SettingsForm settingsForm = new SettingsForm(transcriptionService.Settings, availableMicrophones))
                 {
-                if (modelForm.ShowDialog(this) == DialogResult.OK)
+                if (settingsForm.ShowDialog(this) == DialogResult.OK)
                     {
-                    bool whisperChanged = transcriptionService.Settings.ModelFilePath != modelForm.SelectedWhisperModelPath;
-                    bool llmChanged = transcriptionService.Settings.LocalLLMModelPath != modelForm.SelectedLLMModelPath;
+                    var newSettings = settingsForm.UpdatedSettings;
+                    if (newSettings == null) return;
 
+                    bool whisperChanged = transcriptionService.Settings.ModelFilePath != newSettings.ModelFilePath;
+                    bool llmChanged = transcriptionService.Settings.LocalLLMModelPath != newSettings.LocalLLMModelPath;
+
+                    // Select the microphone in the service
+                    transcriptionService.SelectMicrophone(newSettings.SelectedMicrophoneDevice);
+
+                    // Apply model changes asynchronously (must run before copying other fields to ensure correct change detection)
                     if (whisperChanged)
                         {
-                        AppendToDebugOutput($"[Settings] New Whisper model selected: {modelForm.SelectedWhisperModelPath}");
-                        await transcriptionService.ChangeModelPathAsync(modelForm.SelectedWhisperModelPath);
-                        // ChangeModelPathAsync in service should update Settings and save
+                        AppendToDebugOutput($"[Settings] New Whisper model selected: {newSettings.ModelFilePath}");
+                        await transcriptionService.ChangeModelPathAsync(newSettings.ModelFilePath);
                         }
 
                     if (llmChanged)
                         {
-                        AppendToDebugOutput($"[Settings] New LLM model selected: {modelForm.SelectedLLMModelPath}");
-                        await transcriptionService.ChangeLLMModelPathAsync(modelForm.SelectedLLMModelPath);
-                        // ChangeLLMModelPathAsync in service should update Settings and save
+                        AppendToDebugOutput($"[Settings] New LLM model selected: {newSettings.LocalLLMModelPath}");
+                        await transcriptionService.ChangeLLMModelPathAsync(newSettings.LocalLLMModelPath);
                         }
 
-                    if (whisperChanged || llmChanged)
-                        {
-                        AppendToDebugOutput("[Settings] Model selections updated.");
-                        // SettingsUpdated event from transcriptionService should refresh UI via OnServiceSettingsUpdated
-                        }
-                    else
-                        {
-                        AppendToDebugOutput("[Settings] Model selections unchanged.");
-                        }
+                    // Copy all settings fields including newly exposed advanced options
+                    transcriptionService.Settings.CopyFrom(newSettings);
+
+                    // Save settings
+                    transcriptionService.SaveAppSettings();
+
+                    // Apply UI visibility updates
+                    UpdateUIFromServiceSettings();
+                    UpdateButtonStates();
+
+                    // Keep combobox in sync for Prompt Selection on MainForm
+                    _loadingUi = true;
+                    cmbPromptSelect.DataSource = null;
+                    cmbPromptSelect.DataSource = transcriptionService.Settings.PromptProfiles;
+                    cmbPromptSelect.DisplayMember = "Name";
+                    cmbPromptSelect.ValueMember = "Name";
+                    cmbPromptSelect.SelectedValue = transcriptionService.Settings.ActivePromptProfileName;
+                    _loadingUi = false;
+
+                    AppendToDebugOutput("[Settings] Settings successfully updated and saved.");
                     }
                 else
                     {
-                    AppendToDebugOutput("[Settings] Model selection cancelled.");
-                    }
-                }
-            }
-
-        private void btnMicInput_Click(object sender, EventArgs e) // btnSelectMic_Click
-            {
-            if (isFormRecordingState)
-                {
-                MessageBox.Show("Stop recording before selecting microphone.", "Info");
-                return;
-                }
-
-            if (availableMicrophones.Count == 0)
-                {
-                MessageBox.Show("No microphones detected to select from.", "Info");
-                return;
-                }
-
-            using (Form micSelectionDialog = new Form())
-                {
-                micSelectionDialog.Text = "Select Microphone";
-                micSelectionDialog.ClientSize = new System.Drawing.Size(350, 250); // Set a reasonable client size
-                micSelectionDialog.FormBorderStyle = FormBorderStyle.FixedDialog; // Optional: make it non-resizable
-                micSelectionDialog.StartPosition = FormStartPosition.CenterParent; // Good for dialogs
-                micSelectionDialog.MaximizeBox = false; // Optional
-                micSelectionDialog.MinimizeBox = false; // Optional
-
-                ListBox listBoxMics = new ListBox
-                    {
-                    Dock = DockStyle.Fill, // Fill the available space first
-                    IntegralHeight = false // Allows partial items if list is long
-                    };
-
-                // Panel to hold the OK button at the bottom
-                Panel buttonPanel = new Panel
-                    {
-                    Dock = DockStyle.Bottom,
-                    Height = 40 // Give some space for the button
-                    };
-
-                Button btnOk = new Button
-                    {
-                    Text = "OK",
-                    DialogResult = DialogResult.OK,
-                    // Anchor to the right side of the panel
-                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                    Width = 80, // Set a width for the button
-                    Height = 30 // Set a height
-                    };
-                // Position the OK button within the panel
-                btnOk.Location = new System.Drawing.Point(buttonPanel.ClientSize.Width - btnOk.Width - 10, (buttonPanel.ClientSize.Height - btnOk.Height) / 2);
-
-
-                buttonPanel.Controls.Add(btnOk);
-
-                // Add ListBox first so it fills space not taken by buttonPanel
-                micSelectionDialog.Controls.Add(listBoxMics);
-                micSelectionDialog.Controls.Add(buttonPanel); // Then add panel which docks to bottom
-
-                micSelectionDialog.AcceptButton = btnOk; // Pressing Enter clicks OK
-
-                foreach (var mic in availableMicrophones)
-                    {
-                    listBoxMics.Items.Add($"[{mic.Index}] {mic.Name}");
-                    }
-
-                // Try to pre-select the currently configured microphone
-                int currentMicIndexInList = -1;
-                for (int i = 0; i < availableMicrophones.Count; i++)
-                    {
-                    if (availableMicrophones[i].Index == transcriptionService.Settings.SelectedMicrophoneDevice)
-                        {
-                        currentMicIndexInList = i;
-                        break;
-                        }
-                    }
-                if (currentMicIndexInList != -1)
-                    {
-                    listBoxMics.SelectedIndex = currentMicIndexInList;
-                    }
-                else if (availableMicrophones.Count > 0) // If current not found, select first
-                    {
-                    listBoxMics.SelectedIndex = 0;
-                    }
-
-
-                if (micSelectionDialog.ShowDialog(this) == DialogResult.OK && listBoxMics.SelectedIndex != -1)
-                    {
-                    // Get the actual device index from our availableMicrophones list,
-                    // as listBoxMics.SelectedIndex is the index in the listbox items.
-                    int selectedDeviceIndexInApp = availableMicrophones[listBoxMics.SelectedIndex].Index;
-                    transcriptionService.SelectMicrophone(selectedDeviceIndexInApp);
-                    // SettingsUpdated event from transcriptionService should trigger UI refresh.
+                    AppendToDebugOutput("[Settings] Changes discarded.");
                     }
                 }
             }
@@ -1160,19 +1046,7 @@ namespace SmartDictateAI
                 }
             }
 
-        private void chkDebug_CheckedChanged(object sender, EventArgs e)
-            {
-            transcriptionService.Settings.ShowDebugMessages = chkDebug.Checked;
-            AppendToDebugOutput("[UI] Saveing because chkDebug_CheckedChanged");
-            transcriptionService.SaveAppSettings();
-            }
 
-        private void chkLLM_CheckedChanged(object sender, EventArgs e)
-            {
-            transcriptionService.Settings.ProcessWithLLM = chkLLM.Checked;
-            AppendToDebugOutput("[UI] Saveing because chkLLM_CheckedChanged");
-            transcriptionService.SaveAppSettings();
-            }
 
         private async void btnLLMcb_Click(object sender, EventArgs e)
             {
@@ -1197,14 +1071,7 @@ namespace SmartDictateAI
                 }
             }
 
-        private void cmbVadSensitivity_SelectedIndexChanged(object? sender, EventArgs e)
-            {
-            int idx = cmbVadSensitivity.SelectedIndex;
-            if (idx < 0 || idx > 3)
-                idx = 3;
-            transcriptionService.SetVadMode(idx);
-            AppendToDebugOutput($"[VAD] VAD sensitivity set to {idx}.");
-            }
+
 
         private void cmbPromptSelect_SelectedValueChanged(object sender, EventArgs e)
             {

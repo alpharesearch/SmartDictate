@@ -4,6 +4,7 @@
 /// including audio input, model configuration, and language model processing options.
 /// </summary>
 using System.Collections.Generic;
+using System.Linq;
 namespace SmartDictateAI
 {
     public class AppSettings
@@ -24,7 +25,7 @@ namespace SmartDictateAI
         public string LocalLLMModelPath { get; set; } = "qwen2-0_5b-instruct-q8_0.gguf"; // Example path
         public int LLMContextSize { get; set; } = 16384; // Or a sensible default for 0.5B model like 2048
         public int LLMSeed { get; set; } = 0; // 0 for random, any other int for fixed seed
-        public float LLMTemperature { get; set; } = 0.6f;
+        public float LLMTemperature { get; set; } = 0.2f;
         public int LLMMaxOutputTokens { get; set; } = -1; // Max tokens LLM should generate
         public List<string> LLMAntiPrompts { get; set; } = new List<string> { "<|im_end|>", "<|eot_id|>", "<|end_of_text|>", "<|fim_end|>", "<|im_start|>", "\nuser:", "\nUser:", "<|user|>", "<end_of_turn>", "<eos>" };
         public string LLMPromptTemplate { get; set; } = ""; // Empty string enables Auto-Prompt Formatting
@@ -50,6 +51,47 @@ namespace SmartDictateAI
         public List<PromptProfile> PromptProfiles { get; set; } = new();
 
         public string ActivePromptProfileName { get; set; } = "Strict Proofreader";
+
+        public void CopyFrom(AppSettings source)
+        {
+            if (source == null) return;
+
+            SelectedMicrophoneDevice = source.SelectedMicrophoneDevice;
+            ModelFilePath = source.ModelFilePath;
+            VadMode = source.VadMode;
+            ShowRealtimeTranscription = source.ShowRealtimeTranscription;
+            ShowDebugMessages = source.ShowDebugMessages;
+            ProcessWithLLM = source.ProcessWithLLM;
+            LocalLLMModelPath = source.LocalLLMModelPath;
+            LLMContextSize = source.LLMContextSize;
+            LLMSeed = source.LLMSeed;
+            LLMTemperature = source.LLMTemperature;
+            LLMMaxOutputTokens = source.LLMMaxOutputTokens;
+            LLMAntiPrompts = source.LLMAntiPrompts != null ? new List<string>(source.LLMAntiPrompts) : new List<string>();
+            LLMPromptTemplate = source.LLMPromptTemplate;
+            LLMSystemPrompt = source.LLMSystemPrompt;
+            LLMUserPrompt = source.LLMUserPrompt;
+            UseGpu = source.UseGpu;
+            NormalMaxChunkDurationSeconds = source.NormalMaxChunkDurationSeconds;
+            NormalSilenceThresholdSeconds = source.NormalSilenceThresholdSeconds;
+            DictationMaxChunkDurationSeconds = source.DictationMaxChunkDurationSeconds;
+            DictationSilenceThresholdSeconds = source.DictationSilenceThresholdSeconds;
+            VadGainMultiplier = source.VadGainMultiplier;
+            MaintainContextAcrossChunks = source.MaintainContextAcrossChunks;
+            DictationHotkeyModifiers = source.DictationHotkeyModifiers;
+            DictationHotkeyKey = source.DictationHotkeyKey;
+            ProofreadHotkeyModifiers = source.ProofreadHotkeyModifiers;
+            ProofreadHotkeyKey = source.ProofreadHotkeyKey;
+            ActivePromptProfileName = source.ActivePromptProfileName;
+            PromptProfiles = source.PromptProfiles != null
+                ? source.PromptProfiles.Select(p => new PromptProfile
+                    {
+                    Name = p.Name,
+                    SystemPrompt = p.SystemPrompt,
+                    UserPrompt = p.UserPrompt
+                    }).ToList()
+                : new List<PromptProfile>();
+        }
 
         public void EnsureDefaultPromptProfiles()
         {

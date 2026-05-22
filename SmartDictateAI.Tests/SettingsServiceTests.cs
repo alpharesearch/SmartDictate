@@ -44,7 +44,13 @@ namespace SmartDictateAI.Tests
             {
                 ModelFilePath = "custom-whisper.bin",
                 VadMode = 1,
-                ProcessWithLLM = true
+                ProcessWithLLM = true,
+                LLMContextSize = 8192,
+                LLMTemperature = 0.85f,
+                VadGainMultiplier = 1.5f,
+                NormalMaxChunkDurationSeconds = 12.0,
+                DictationSilenceThresholdSeconds = 0.95,
+                DictationHotkeyKey = "E"
             };
 
             // Act
@@ -56,6 +62,12 @@ namespace SmartDictateAI.Tests
             Assert.Equal("custom-whisper.bin", loadedSettings.ModelFilePath);
             Assert.Equal(1, loadedSettings.VadMode);
             Assert.True(loadedSettings.ProcessWithLLM);
+            Assert.Equal(8192, loadedSettings.LLMContextSize);
+            Assert.Equal(0.85f, loadedSettings.LLMTemperature);
+            Assert.Equal(1.5f, loadedSettings.VadGainMultiplier);
+            Assert.Equal(12.0, loadedSettings.NormalMaxChunkDurationSeconds);
+            Assert.Equal(0.95, loadedSettings.DictationSilenceThresholdSeconds);
+            Assert.Equal("E", loadedSettings.DictationHotkeyKey);
         }
 
         public void Dispose()
