@@ -16,6 +16,9 @@ SmartDictate is a C# .NET 9 Windows Forms application that provides local, priva
 *   **Clipboard Proofreading:** Hotkey-triggered proofreading of clipboard text using a local LLM.
 *   **Local LLM Refinement:** Automatically corrects grammar, spelling, and punctuation.
 *   **Auto-Prompt Formatting:** Dynamically formats instructions based on the loaded LLM model (Qwen, Llama, Gemma).
+*   **Consolidated Tabbed Settings:** Adjust Whisper and LLM paths, VAD settings, silence thresholds, system/user prompt profiles, and custom hotkeys in a single unified settings form.
+*   **Multi-State Visual Pipeline Indicator:** Color-coded, real-time pipeline status feedback (Idle, Listening, Speech Detected, Processing).
+*   **Interactive Clipboard Rerun (`Rerun LLM` button):** Context-aware action that triggers LLM refinement on the active text buffer on-demand.
 *   **Real-time Monitoring:** Tracks System RAM and GPU VRAM usage.
 
 ## Building and Running
@@ -31,9 +34,16 @@ The project requires Visual Studio 2022 to build and run effectively, particular
 
 ## Development Conventions
 
-*   **Architecture:** The application separates UI concerns (`MainForm.cs`, `ModelSelectionForm.cs`) from business logic (`TranscriptionService.cs`, `GlobalHotkeyService.cs`, `KeyboardSimulator.cs`).
+*   **Decoupled Architecture:** The application separates UI concerns (`MainForm.cs`, `SettingsForm.cs`) from business logic through single-responsibility service interfaces under `SmartDictateAI/Services`:
+    *   `ISettingsService` / `SettingsService` — Load, clone, and save advanced application parameters.
+    *   `IVadService` / `VadService` — Wraps WebRtcVad, handles software amplification, and checks frames for speech.
+    *   `IWhisperService` / `WhisperService` — Manages GGML model contexts and speech-to-text inference.
+    *   `ILLMService` / `LLMService` — Manages GGUF model contexts and text post-processing refinements.
+    *   `IAudioCaptureService` / `AudioCaptureService` — Encapsulates NAudio capture state and events.
+    *   `TranscriptionService.cs` acts as a unified orchestrator using Dependency Injection for all five services, allowing isolated testing without mocking complex native libraries.
+*   **WinForms Designer Compliance:** To keep the Visual Studio visual designer fully functional, all control instantiations, positions, bounds, sizes, font specifications, and parent additions must reside inside the `InitializeComponent()` method within `Designer.cs` files. Do not initialize coordinates or layout rules programmatically in code-behind constructor files!
 *   **Communication:** Event-driven architecture is used to pass data from services back to the UI (e.g., `TranscriptionService.SegmentTranscribed`, `TranscriptionService.FullTranscriptionReady`).
-*   **Configuration:** User settings and advanced tweaks are managed through `appsettings.json`, mapped to the `AppSettings.cs` class.
+*   **Configuration:** User settings and advanced tweaks are managed through `appsettings.json`, mapped to the `AppSettings.cs` class. When updating values in the settings form, use cloned copy structures to support atomic Cancel/OK dialog transactions.
 *   **Naming Conventions:** 
     *   Standard C# conventions apply: PascalCase for classes, methods, and public properties.
     *   camelCase for local variables and parameters.
@@ -55,5 +65,6 @@ You can run the tests using any of the following methods:
 
 ### Testing Conventions
 *   **Framework:** xUnit is used as the primary testing framework.
+*   **Mocking:** Use lightweight, self-contained mock implementations of service interfaces (found inside the test project) rather than introducing third-party Mocking engines.
 *   **Target Framework:** The test project must target `net9.0-windows` to ensure compatibility with the main Windows Forms application.
 *   **Naming Conventions:** Test classes should append `Tests` to the name of the class being tested (e.g., `AppSettingsTests`). Test methods generally follow a descriptive pattern, such as `MethodName_StateUnderTest_ExpectedBehavior`.
