@@ -68,11 +68,6 @@ public static class KeyboardSimulator
     private const uint KEYEVENTF_UNICODE = 0x0004;
     private const uint KEYEVENTF_SCANCODE = 0x0008;
 
-    private static readonly Regex PlaceholderRegex = new Regex(
-            @"(\[[A-Za-z _\-]+\]|\([A-Za-z _\-]+\)|\.\.\.)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled
-        );
-
     // Define a set of known placeholders for more precise matching if needed,
     // in addition to or instead of a general regex.
     private static readonly HashSet<string> KnownPlaceholdersForDictation = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -126,7 +121,7 @@ public static class KeyboardSimulator
                         }
                     }
                     Thread.Sleep(60); // Allow clipboard to update
-                    SendCtrlVWrapper();
+                    SendCtrlV();
                     Thread.Sleep(60); // Allow target app to process paste
                 }
                 catch (Exception ex)
@@ -210,12 +205,6 @@ public static class KeyboardSimulator
     // Convenience methods for common combos
     public static void SendCtrlC() => SendModifiedKey(Keys.ControlKey, Keys.C);
     public static void SendCtrlV() => SendModifiedKey(Keys.ControlKey, Keys.V);
-
-    // Low-level paste wrapper used above
-    private static void SendCtrlVWrapper()
-    {
-        SendCtrlV();
-    }
 
     // Alternative using System.Windows.Forms.SendKeys (simpler but less reliable with some apps)
     public static void SendTextAlternative(string text)

@@ -455,6 +455,44 @@ namespace SmartDictateAI.Tests
             Assert.Equal(DictationVisualState.Idle, _service.CurrentVisualState);
         }
 
+        [Fact]
+        public async Task RecordingStopped_FiltersOutKnownPlaceholders()
+        {
+            // Arrange
+            _settingsMock.Settings.ProcessWithLLM = false; // Skip LLM processing to focus on raw filtered text
+            _whisperMock.TranscriptionSegments = new List<string>
+            {
+                "[BLANK_AUDIO]",
+                "Hello",
+                "[MUSIC PLAYING]",
+                "world",
+                "(silence)",
+                "[CLICK]"
+            };
+
+            await _service.StartRecordingAsync(0);
+
+            // Trigger speech detection in VAD so chunk is processed and not discarded
+            _vadMock.ShouldHasSpeechReturn = true;
+
+            var frame = new byte[640];
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+            _captureMock.TriggerDataAvailable(frame, frame.Length);
+
+            var tcs = new TaskCompletionSource<string>();
+            _service.FullTranscriptionReady += (text) => tcs.TrySetResult(text);
+
+            // Act
+            await _service.StopRecording();
+            await Task.WhenAny(tcs.Task, Task.Delay(2000));
+
+            // Assert
+            Assert.Equal("Hello world", _service.LastRawFilteredText);
+        }
 
         public void Dispose()
         {

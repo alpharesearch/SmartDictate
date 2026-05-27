@@ -95,44 +95,9 @@ namespace SmartDictateAI
 
         private AppSettings CloneSettings(AppSettings source)
             {
-            return new AppSettings
-                {
-                SelectedMicrophoneDevice = source.SelectedMicrophoneDevice,
-                ModelFilePath = source.ModelFilePath,
-                VadMode = source.VadMode,
-                ShowRealtimeTranscription = source.ShowRealtimeTranscription,
-                ShowDebugMessages = source.ShowDebugMessages,
-                ProcessWithLLM = source.ProcessWithLLM,
-                LocalLLMModelPath = source.LocalLLMModelPath,
-                LLMContextSize = source.LLMContextSize,
-                LLMSeed = source.LLMSeed,
-                LLMTemperature = source.LLMTemperature,
-                LLMMaxOutputTokens = source.LLMMaxOutputTokens,
-                LLMAntiPrompts = source.LLMAntiPrompts != null ? new List<string>(source.LLMAntiPrompts) : new List<string>(),
-                LLMPromptTemplate = source.LLMPromptTemplate,
-                LLMSystemPrompt = source.LLMSystemPrompt,
-                LLMUserPrompt = source.LLMUserPrompt,
-                UseGpu = source.UseGpu,
-                NormalMaxChunkDurationSeconds = source.NormalMaxChunkDurationSeconds,
-                NormalSilenceThresholdSeconds = source.NormalSilenceThresholdSeconds,
-                DictationMaxChunkDurationSeconds = source.DictationMaxChunkDurationSeconds,
-                DictationSilenceThresholdSeconds = source.DictationSilenceThresholdSeconds,
-                VadGainMultiplier = source.VadGainMultiplier,
-                MaintainContextAcrossChunks = source.MaintainContextAcrossChunks,
-                DictationHotkeyModifiers = source.DictationHotkeyModifiers,
-                DictationHotkeyKey = source.DictationHotkeyKey,
-                ProofreadHotkeyModifiers = source.ProofreadHotkeyModifiers,
-                ProofreadHotkeyKey = source.ProofreadHotkeyKey,
-                ActivePromptProfileName = source.ActivePromptProfileName,
-                PromptProfiles = source.PromptProfiles != null
-                    ? source.PromptProfiles.Select(p => new PromptProfile
-                        {
-                        Name = p.Name,
-                        SystemPrompt = p.SystemPrompt,
-                        UserPrompt = p.UserPrompt
-                        }).ToList()
-                    : new List<PromptProfile>()
-                };
+            var cloned = new AppSettings();
+            cloned.CopyFrom(source);
+            return cloned;
             }
 
         private void PopulateMicrophones(List<(int Index, string Name)> availableMics)
@@ -420,11 +385,6 @@ namespace SmartDictateAI
             {
             this.DialogResult = DialogResult.Cancel;
             this.Close();
-            }
-
-        private void chkUseGpu_CheckedChanged(object sender, EventArgs e)
-            {
-
             }
 
         private void llWhisper_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)

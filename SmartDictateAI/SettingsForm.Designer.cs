@@ -177,7 +177,6 @@ namespace SmartDictateAI
             chkUseGpu.TabIndex = 6;
             chkUseGpu.Text = "Use GPU Acceleration (CUDA)";
             chkUseGpu.UseVisualStyleBackColor = true;
-            chkUseGpu.CheckedChanged += chkUseGpu_CheckedChanged;
             // 
             // btnBrowseLLMModel
             // 
