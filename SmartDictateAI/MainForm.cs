@@ -26,7 +26,7 @@ namespace SmartDictateAI
 
         private enum AppStatus
             {
-            Idle, Calibrating, Listening, Processing, Error
+            Idle, Calibrating, Listening, Processing, Error, Loading
             }
         private Color idleColor = Color.FromArgb(240, 240, 240); // Sleek modern light gray
         private Color listeningColor = Color.FromArgb(235, 245, 255); // Pastel blue
@@ -559,7 +559,12 @@ namespace SmartDictateAI
                     displayColor = calibratingColor;
                     textColor = Color.FromArgb(153, 115, 0);
                     break;
-                }
+                case AppStatus.Loading:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "Loading..." : message;
+                    displayColor = idleColor;
+                    textColor = Color.DimGray;
+                    break;
+            }
             lblStatusIndicator.Text = displayText;
             lblStatusIndicator.BackColor = displayColor;
             lblStatusIndicator.ForeColor = textColor;
@@ -598,7 +603,13 @@ namespace SmartDictateAI
                     lblStatusIndicator.BackColor = Color.FromArgb(255, 248, 230);
                     lblStatusIndicator.ForeColor = Color.FromArgb(230, 115, 0);
                     break;
-                }
+
+                case DictationVisualState.Loading:
+                    lblStatusIndicator.Text = "⟳ Loading";
+                    lblStatusIndicator.BackColor = Color.FromArgb(240, 240, 240);
+                    lblStatusIndicator.ForeColor = Color.DimGray;
+                    break;
+            }
             }
 
         private bool activelyProcessingChunkInUI = false;
@@ -619,7 +630,7 @@ namespace SmartDictateAI
             UpdateUIFromServiceSettings();
             PopulateMicrophoneList();
             UpdateButtonStates();
-            UpdateStatusIndicator(AppStatus.Idle);
+            UpdateStatusIndicator(AppStatus.Loading);
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
 
             // Update UI Labels with configured hotkeys

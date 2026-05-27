@@ -1,19 +1,20 @@
 // TranscriptionService.cs
+using LLama; // Core LLamaSharp
+using LLama.Common;
 using Microsoft.Extensions.Configuration;
 using NAudio.Wave;
+using SmartDictateAI.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.NetworkInformation;
+using System.Reflection;
 using System.Text; // For StringBuilder
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Whisper.net;
-using LLama; // Core LLamaSharp
-using LLama.Common;
-using System.Reflection;
-using SmartDictateAI.Services;
 
 namespace SmartDictateAI
 {
@@ -200,6 +201,7 @@ namespace SmartDictateAI
 
         public async Task PreloadModelsAsync()
         {
+            CurrentVisualState = DictationVisualState.Loading;
             OnDebugMessage("[App] Preloading models in background...");
             try
             {
@@ -213,10 +215,12 @@ namespace SmartDictateAI
                 });
                 await Task.WhenAll(whisperTask, llmTask);
                 OnDebugMessage("[App] Background model preloading completed.");
+                CurrentVisualState = DictationVisualState.Idle;
             }
             catch (Exception ex)
             {
                 OnDebugMessage($"[App] Background model preloading failed: {ex.Message}");
+                CurrentVisualState = DictationVisualState.Idle;
             }
         }
 
