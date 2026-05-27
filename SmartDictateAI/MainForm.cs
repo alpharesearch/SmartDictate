@@ -24,16 +24,6 @@ namespace SmartDictateAI
         private bool isStoppingOrProcessingFinal = false; // UI flag to prevent overlap during stop processing
         private List<(int Index, string Name)> availableMicrophones = new List<(int, string)>();
 
-        private enum AppStatus
-            {
-            Idle, Calibrating, Listening, Processing, Error, Loading
-            }
-        private Color idleColor = Color.FromArgb(240, 240, 240); // Sleek modern light gray
-        private Color listeningColor = Color.FromArgb(235, 245, 255); // Pastel blue
-        private Color processingColor = Color.FromArgb(255, 248, 230); // Pastel orange
-        private Color errorColor = Color.FromArgb(255, 235, 235); // Pastel red
-        private Color calibratingColor = Color.FromArgb(255, 255, 230); // Pastel yellow
-
         private System.Windows.Forms.Timer? _vramTimer;
         private List<PerformanceCounter> _vramCounters = new List<PerformanceCounter>();
         private Dictionary<string, PerformanceCounter> _processVramCounters = new Dictionary<string, PerformanceCounter>();
@@ -50,8 +40,6 @@ namespace SmartDictateAI
             transcriptionService.FullTranscriptionReady += OnFullTranscriptionCompleted;
             transcriptionService.RecordingStateChanged += OnServiceRecordingStateChanged;
             transcriptionService.SettingsUpdated += OnServiceSettingsUpdated;
-            transcriptionService.ProcessingStarted += OnServiceProcessingStarted; // Subscribe
-            transcriptionService.ProcessingFinished += OnServiceProcessingFinished; // Subscribe
             transcriptionService.VisualStateChanged += TranscriptionService_VisualStateChanged;
 
             // Set initial UI state from settings
@@ -312,33 +300,33 @@ namespace SmartDictateAI
                     return;
                     }
                 AppendToDebugOutput("[Dictation] Attempting to start dictation mode...");
-                UpdateStatusIndicator(AppStatus.Processing, "Dictation Starting...");
+                UpdateStatusIndicator(DictationVisualState.Processing, "Dictation Starting...");
                 isInDictationModeCurrently = true; // Optimistic
                 bool success = await transcriptionService.StartDictationModeAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
                 if (success)
                     {
                     AppendToDebugOutput("[Dictation] Dictation mode started.");
-                    UpdateStatusIndicator(AppStatus.Listening, "Dictating...");
+                    UpdateStatusIndicator(DictationVisualState.ListeningSilent, "Dictating...");
                     // Optionally minimize or hide your main form
                     // this.WindowState = FormWindowState.Minimized;
                     }
                 else
                     {
                     AppendToDebugOutput("[Dictation] Failed to start dictation mode.");
-                    UpdateStatusIndicator(AppStatus.Error, "Dictation start failed");
+                    UpdateStatusIndicator(DictationVisualState.Error, "Dictation start failed");
                     isInDictationModeCurrently = false; // Revert
                     }
                 }
             else // If already in dictation mode, stop it
                 {
                 AppendToDebugOutput("[Dictation] Attempting to stop dictation mode...");
-                UpdateStatusIndicator(AppStatus.Processing, "Dictation Stopping...");
+                UpdateStatusIndicator(DictationVisualState.Processing, "Dictation Stopping...");
                 isStoppingOrProcessingFinal = true;
                 UpdateButtonStates();
                 await transcriptionService.StopDictationModeAsync();
                 isStoppingOrProcessingFinal = false;
                 isInDictationModeCurrently = false;
-                UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
+                UpdateStatusIndicator(DictationVisualState.Idle, "Dictation Ended");
                 AppendToDebugOutput("[Dictation] Dictation mode stopped.");
                 UpdateButtonStates();
                 // Optionally restore your main form if it was minimized
@@ -520,51 +508,52 @@ namespace SmartDictateAI
                 }
             }
 
-        private void UpdateStatusIndicator(AppStatus status, string message = "")
+        private void UpdateStatusIndicator(DictationVisualState state, string message = "")
             {
             if (lblStatusIndicator.InvokeRequired)
                 {
-                lblStatusIndicator.Invoke(() => UpdateStatusIndicator(status, message));
+                lblStatusIndicator.Invoke(() => UpdateStatusIndicator(state, message));
                 return;
                 }
 
             string displayText = message;
-            Color displayColor = idleColor;
+            Color displayColor = Color.FromArgb(240, 240, 240); // Sleek modern light gray
             Color textColor = Color.DimGray;
 
-            switch (status)
+            switch (state)
                 {
-                case AppStatus.Idle:
-                    displayText = string.IsNullOrWhiteSpace(message) ? "Ready" : message;
-                    displayColor = idleColor;
+                case DictationVisualState.Idle:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "⚪ Ready" : $"⚪ {message}";
+                    displayColor = Color.FromArgb(240, 240, 240);
                     textColor = Color.DimGray;
                     break;
-                case AppStatus.Listening:
-                    displayText = string.IsNullOrWhiteSpace(message) ? "Listening..." : message;
-                    displayColor = listeningColor;
+                case DictationVisualState.ListeningSilent:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "🎤 Listening..." : $"🎤 {message}";
+                    displayColor = Color.FromArgb(235, 245, 255);
                     textColor = Color.FromArgb(0, 102, 204);
                     break;
-                case AppStatus.Processing:
-                    displayText = string.IsNullOrWhiteSpace(message) ? "Processing..." : message;
-                    displayColor = processingColor;
+                case DictationVisualState.SpeechDetected:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "🔥 Speaking" : $"🔥 {message}";
+                    displayColor = Color.FromArgb(235, 255, 240);
+                    textColor = Color.FromArgb(0, 153, 51);
+                    break;
+                case DictationVisualState.Processing:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "⏳ Processing Text..." : $"⏳ {message}";
+                    displayColor = Color.FromArgb(255, 248, 230);
                     textColor = Color.FromArgb(230, 115, 0);
                     break;
-                case AppStatus.Error:
-                    displayText = string.IsNullOrWhiteSpace(message) ? "Error" : message;
-                    displayColor = errorColor;
-                    textColor = Color.FromArgb(204, 0, 0);
-                    break;
-                case AppStatus.Calibrating:
-                    displayText = string.IsNullOrWhiteSpace(message) ? "Calibrating..." : message;
-                    displayColor = calibratingColor;
-                    textColor = Color.FromArgb(153, 115, 0);
-                    break;
-                case AppStatus.Loading:
-                    displayText = string.IsNullOrWhiteSpace(message) ? "Loading..." : message;
-                    displayColor = idleColor;
+                case DictationVisualState.Loading:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "⟳ Loading" : $"⟳ {message}";
+                    displayColor = Color.FromArgb(240, 240, 240);
                     textColor = Color.DimGray;
                     break;
-            }
+                case DictationVisualState.Error:
+                    displayText = string.IsNullOrWhiteSpace(message) ? "❌ Error" : $"❌ {message}";
+                    displayColor = Color.FromArgb(255, 235, 235);
+                    textColor = Color.FromArgb(204, 0, 0);
+                    break;
+                }
+
             lblStatusIndicator.Text = displayText;
             lblStatusIndicator.BackColor = displayColor;
             lblStatusIndicator.ForeColor = textColor;
@@ -572,57 +561,7 @@ namespace SmartDictateAI
 
         private void TranscriptionService_VisualStateChanged(DictationVisualState state)
             {
-            if (this.InvokeRequired)
-                {
-                this.BeginInvoke(new Action(() => TranscriptionService_VisualStateChanged(state)));
-                return;
-                }
-
-            switch (state)
-                {
-                case DictationVisualState.Idle:
-                    lblStatusIndicator.Text = "⚪ Ready";
-                    lblStatusIndicator.BackColor = Color.FromArgb(240, 240, 240);
-                    lblStatusIndicator.ForeColor = Color.DimGray;
-                    break;
-
-                case DictationVisualState.ListeningSilent:
-                    lblStatusIndicator.Text = "🎤 Listening...";
-                    lblStatusIndicator.BackColor = Color.FromArgb(235, 245, 255);
-                    lblStatusIndicator.ForeColor = Color.FromArgb(0, 102, 204);
-                    break;
-
-                case DictationVisualState.SpeechDetected:
-                    lblStatusIndicator.Text = "🔥 Speaking";
-                    lblStatusIndicator.BackColor = Color.FromArgb(235, 255, 240);
-                    lblStatusIndicator.ForeColor = Color.FromArgb(0, 153, 51);
-                    break;
-
-                case DictationVisualState.Processing:
-                    lblStatusIndicator.Text = "⏳ Processing Text...";
-                    lblStatusIndicator.BackColor = Color.FromArgb(255, 248, 230);
-                    lblStatusIndicator.ForeColor = Color.FromArgb(230, 115, 0);
-                    break;
-
-                case DictationVisualState.Loading:
-                    lblStatusIndicator.Text = "⟳ Loading";
-                    lblStatusIndicator.BackColor = Color.FromArgb(240, 240, 240);
-                    lblStatusIndicator.ForeColor = Color.DimGray;
-                    break;
-            }
-            }
-
-        private bool activelyProcessingChunkInUI = false;
-        private void OnServiceProcessingStarted()
-            {
-            activelyProcessingChunkInUI = true;
-            UpdateStatusIndicator(AppStatus.Processing);
-            }
-
-        private void OnServiceProcessingFinished()
-            {
-            activelyProcessingChunkInUI = false;
-            UpdateStatusIndicator(isFormRecordingState ? AppStatus.Listening : AppStatus.Idle);
+            UpdateStatusIndicator(state);
             }
 
         private void MainForm_Load(object sender, EventArgs e)
@@ -630,7 +569,7 @@ namespace SmartDictateAI
             UpdateUIFromServiceSettings();
             PopulateMicrophoneList();
             UpdateButtonStates();
-            UpdateStatusIndicator(AppStatus.Loading);
+            UpdateStatusIndicator(DictationVisualState.Loading);
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
 
             // Update UI Labels with configured hotkeys
@@ -669,8 +608,6 @@ namespace SmartDictateAI
                 transcriptionService.FullTranscriptionReady -= OnFullTranscriptionCompleted;
                 transcriptionService.RecordingStateChanged -= OnServiceRecordingStateChanged;
                 transcriptionService.SettingsUpdated -= OnServiceSettingsUpdated;
-                transcriptionService.ProcessingStarted -= OnServiceProcessingStarted;
-                transcriptionService.ProcessingFinished -= OnServiceProcessingFinished;
                 transcriptionService.VisualStateChanged -= TranscriptionService_VisualStateChanged;
                 }
             if (globalHotkeyService != null)
@@ -730,7 +667,6 @@ namespace SmartDictateAI
             isFormRecordingState = nowRecording; // Update UI state
             if (nowRecording)
                 {
-                UpdateStatusIndicator(AppStatus.Listening);
                 btnCopyRawText.Enabled = false; // Disable during recording
                 btnCopyLLMText.Enabled = false; // Disable during recording
                 }
@@ -741,12 +677,8 @@ namespace SmartDictateAI
                     if (!isStoppingOrProcessingFinal)
                         {
                         isInDictationModeCurrently = false;
-                        UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
+                        UpdateStatusIndicator(DictationVisualState.Idle, "Dictation Ended");
                         }
-                    }
-                else if (!activelyProcessingChunkInUI)
-                    {
-                    UpdateStatusIndicator(AppStatus.Idle);
                     }
                 }
             UpdateButtonStates();
@@ -908,11 +840,11 @@ namespace SmartDictateAI
 
                 textBoxOutput.Clear(); // Clear previous full transcription
                 AppendToDebugOutput("[Audio] Start recording button clicked.");
-                UpdateStatusIndicator(AppStatus.Processing, "Starting...");
+                UpdateStatusIndicator(DictationVisualState.Processing, "Starting...");
                 bool success = await transcriptionService.StartRecordingAsync(transcriptionService.Settings.SelectedMicrophoneDevice);
                 if (!success)
                     {
-                    UpdateStatusIndicator(AppStatus.Error, "Failed to start");
+                    UpdateStatusIndicator(DictationVisualState.Error, "Failed to start");
                     MessageBox.Show("Failed to start recording. Check debug log.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     btnStartStop.Enabled = true;
                     }
@@ -923,19 +855,19 @@ namespace SmartDictateAI
                 if (isInDictationModeCurrently)
                     {
                     AppendToDebugOutput("[Dictation] Stop dictation mode button clicked.");
-                    UpdateStatusIndicator(AppStatus.Processing, "Dictation Stopping...");
+                    UpdateStatusIndicator(DictationVisualState.Processing, "Dictation Stopping...");
                     isStoppingOrProcessingFinal = true;
                     UpdateButtonStates();
                     await transcriptionService.StopDictationModeAsync();
                     isStoppingOrProcessingFinal = false;
                     isInDictationModeCurrently = false;
-                    UpdateStatusIndicator(AppStatus.Idle, "Dictation Ended");
+                    UpdateStatusIndicator(DictationVisualState.Idle, "Dictation Ended");
                     AppendToDebugOutput("[Dictation] Dictation mode stopped.");
                     }
                 else
                     {
                     AppendToDebugOutput("[Audio] Stop recording button clicked.");
-                    UpdateStatusIndicator(AppStatus.Processing, "Stopping..."); // Indicate stopping is a form of processing
+                    UpdateStatusIndicator(DictationVisualState.Processing, "Stopping..."); // Indicate stopping is a form of processing
                     isStoppingOrProcessingFinal = true;
                     UpdateButtonStates();
                     Task stopTask = transcriptionService.StopRecording();
