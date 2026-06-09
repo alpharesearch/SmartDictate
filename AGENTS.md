@@ -31,6 +31,14 @@ The project requires Visual Studio 2022 to build and run effectively, particular
 
 *Note: You must manually download the necessary Whisper (GGML) and LLM (GGUF) models and place them in the application directory or specify their paths in the UI/settings.*
 
+### Versioning
+SmartDictate uses manual versioning. The version, build, and revision numbers are explicitly defined in the project file [SmartDictateAI.csproj](file:///d:/GitHub/SmartDictate/SmartDictateAI/SmartDictateAI.csproj) using MSBuild properties:
+*   `<Version>`: Package/Informational version (e.g., `1.0.0`)
+*   `<AssemblyVersion>`: Assembly version (e.g., `1.0.0.0`), parsed at startup to output the version log.
+*   `<FileVersion>`: Win32 file version (e.g., `1.0.0.0`)
+
+To increment the version, update these tags manually in the `.csproj` file.
+
 ---
 
 # DOX framework

@@ -33,6 +33,10 @@ namespace SmartDictateAI
             {
             _loadingUi = true;
             InitializeComponent();
+
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            AppendToDebugOutput($"[App] SmartDictate Start - Version: {version?.Major}.{version?.Minor} | Build: {version?.Build} | Revision: {version?.Revision}");
+
             transcriptionService = new TranscriptionService();
             // Subscribe to events from TranscriptionService
             transcriptionService.SegmentTranscribed += OnServiceSegmentTranscribedForDictation;
