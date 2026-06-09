@@ -34,6 +34,7 @@ The project requires Visual Studio 2022 to build and run effectively, particular
 
 ## Development Conventions
 
+*   **DOX Documentation Framework:** The project adheres strictly to the DOX framework detailed in the root [AGENTS.md](file:///d:/GitHub/SmartDictate/AGENTS.md). All agents must read root and child `AGENTS.md` files before making edits and perform a DOX pass to update them upon completion.
 *   **Decoupled Architecture:** The application separates UI concerns (`MainForm.cs`, `SettingsForm.cs`) from business logic through single-responsibility service interfaces under `SmartDictateAI/Services`:
     *   `ISettingsService` / `SettingsService` — Load, clone, and save advanced application parameters.
     *   `IVadService` / `VadService` — Wraps WebRtcVad, handles software amplification, and checks frames for speech.
