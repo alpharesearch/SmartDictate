@@ -29,8 +29,8 @@ namespace SmartDictateAI
         public int LLMMaxOutputTokens { get; set; } = -1; // Max tokens LLM should generate
         public List<string> LLMAntiPrompts { get; set; } = GetDefaultLLMAntiPrompts();
         public string LLMPromptTemplate { get; set; } = ""; // Empty string enables Auto-Prompt Formatting
-        public string LLMSystemPrompt { get; set; } = "You are an expert copy editor. Your task is to take the provided transcribed text and refine it into clear, grammatically correct, and professional-sounding prose. Correct any dictation errors, fix punctuation, and improve sentence structure where necessary. Output only the refined text.";
-        public string LLMUserPrompt { get; set; } = "Rreview the following dictation for spelling and grammar errors in American style, and enhance its professionalism. Additionally, please use this style of punctuation, like: \"Some text.\" You work through the whole text step by step to ensure accuracy. Correct grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation, now the dictation starts:";
+        public string LLMSystemPrompt { get; set; } = "You are an expert copy editor. Your task is to refine the raw transcription. Correct spelling and grammar errors, insert proper punctuation, remove conversational filler, and enhance clarity. Output ONLY the refined text.";
+        public string LLMUserPrompt { get; set; } = "Refine the following text. Do not include any explanations, preamble, or notes. Text:\n";
         public bool UseGpu { get; set; } = true; // Default to trying GPU. llama.cpp usually falls back to CPU if GPU init fails.
 
         // Audio Chunking & VAD Settings
@@ -132,8 +132,8 @@ namespace SmartDictateAI
             new PromptProfile
             {
                 Name = "Copy Editor",
-                SystemPrompt = "You are an expert copy editor. You will receive a raw transcription from a Whisper speech-to-text model. Fix any obvious audio transcription errors, insert correct punctuation, format technical terms properly, and remove conversational filler words. Your task is to take the provided transcribed text and refine it into clear, grammatically correct, and professional-sounding prose. Correct any dictation errors, fix punctuation, and improve sentence structure where necessary. Output only the refined text.",
-                UserPrompt = "Review the following dictation for spelling and grammar errors in American style, and enhance its professionalism. You work through the whole text step by step to ensure accuracy. Correct grammar, improve clarity, ensure punctuation is accurate, and make the following text sound more professional. Output only the revised text, without any preamble or explanation, now the dictation starts:"
+                SystemPrompt = "You are an expert copy editor. Your task is to refine the raw transcription. Correct spelling and grammar errors, insert proper punctuation, remove conversational filler, and enhance clarity. Output ONLY the refined text.",
+                UserPrompt = "Refine the following text. Do not include any explanations, preamble, or notes. Text:\n"
             },
             new PromptProfile
             {
@@ -144,8 +144,8 @@ namespace SmartDictateAI
             new PromptProfile
             {
                 Name = "German Copy Editor",
-                SystemPrompt = "Du bist ein erfahrener Lektor. Deine Aufgabe ist es, den bereitgestellten transkribierten Text in klares, grammatikalisch korrektes und professionell klingendes Deutsch zu überarbeiten. Korrigiere eventuelle Diktierfehler, verbessere die Zeichensetzung und optimiere den Satzbau, wo nötig. Gib ausschließlich den überarbeiteten Text aus.",
-                UserPrompt = "Überprüfe das folgende Diktat auf Rechtschreib- und Grammatikfehler im Deutschen und verbessere seine Professionalität. Gehe den gesamten Text Schritt für Schritt durch, um Genauigkeit zu gewährleisten. Korrigiere die Grammatik, verbessere die Klarheit, stelle eine korrekte Zeichensetzung sicher und lasse den folgenden Text professioneller klingen. Gib ausschließlich den überarbeiteten Text auf Deutsch aus, ohne Vorworte oder Erklärungen. Jetzt beginnt das Diktat:"
+                SystemPrompt = "Du bist ein erfahrener Lektor. Deine Aufgabe ist es, die Rohübertragung zu verbessern. Korrigiere Rechtschreib- und Grammatikfehler, füge passende Zeichensetzung hinzu, entferne Füllwörter und verbessere die Klarheit. Gib NUR den korrigierten Text aus.",
+                UserPrompt = "Überarbeite den folgenden Text. Gib keine Erklärungen oder Einleitungen. Text:\n"
             },
             new PromptProfile
             {

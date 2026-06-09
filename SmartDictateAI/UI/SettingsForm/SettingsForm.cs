@@ -387,6 +387,83 @@ namespace SmartDictateAI
             this.Close();
             }
 
+        private void btnLoadDefaults_Click(object sender, EventArgs e)
+            {
+            if (MessageBox.Show(this, "Are you sure you want to load default settings? This will reset all your current configurations.", "Load Defaults", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                var defaults = new AppSettings();
+                defaults.EnsureDefaultPromptProfiles();
+                defaults.EnsureDefaultLLMAntiPrompts();
+
+                _clonedSettings = defaults;
+
+                _loadingForm = true;
+
+                // 1. Models Tab
+                txtWhisperModelPath.Text = _clonedSettings.ModelFilePath;
+                txtLLMModelPath.Text = _clonedSettings.LocalLLMModelPath;
+                chkUseGpu.Checked = _clonedSettings.UseGpu;
+
+                // 2. Audio & VAD Tab
+                if (cmbMicrophone.Items.Count > 0)
+                    {
+                    int selectIndex = 0;
+                    for (int i = 0; i < cmbMicrophone.Items.Count; i++)
+                        {
+                        if (cmbMicrophone.Items[i] is MicItem mic && mic.Index == _clonedSettings.SelectedMicrophoneDevice)
+                            {
+                            selectIndex = i;
+                            break;
+                            }
+                        }
+                    cmbMicrophone.SelectedIndex = selectIndex;
+                    }
+
+                int selectVadIndex = 3; // Default is Max (3)
+                for (int i = 0; i < cmbVadMode.Items.Count; i++)
+                    {
+                    if (cmbVadMode.Items[i] is VadModeItem vad && vad.ModeValue == _clonedSettings.VadMode)
+                        {
+                        selectVadIndex = i;
+                        break;
+                        }
+                    }
+                cmbVadMode.SelectedIndex = selectVadIndex;
+
+                // 3. LLM & Prompts Tab
+                chkProcessWithLlm.Checked = _clonedSettings.ProcessWithLLM;
+                PopulatePromptProfiles();
+                txtSystemPrompt.Text = _clonedSettings.LLMSystemPrompt;
+                txtUserPrompt.Text = _clonedSettings.LLMUserPrompt;
+
+                ToggleLlmControls(chkProcessWithLlm.Checked);
+
+                // 4. General Tab
+                chkShowDebug.Checked = _clonedSettings.ShowDebugMessages;
+
+                // Load values to advanced controls
+                numLlmContextSize.Value = Math.Max(512, Math.Min(131072, _clonedSettings.LLMContextSize));
+                numLlmSeed.Value = Math.Max(0, Math.Min(int.MaxValue, _clonedSettings.LLMSeed));
+                numLlmTemperature.Value = Math.Max(0.0M, Math.Min(2.0M, (decimal)_clonedSettings.LLMTemperature));
+                numLlmMaxTokens.Value = Math.Max(-1, Math.Min(32768, _clonedSettings.LLMMaxOutputTokens));
+                chkMaintainContext.Checked = _clonedSettings.MaintainContextAcrossChunks;
+
+                numVadGain.Value = Math.Max(0.1M, Math.Min(10.0M, (decimal)_clonedSettings.VadGainMultiplier));
+                numNormalMaxDuration.Value = Math.Max(1.0M, Math.Min(60.0M, (decimal)_clonedSettings.NormalMaxChunkDurationSeconds));
+                numNormalSilence.Value = Math.Max(0.1M, Math.Min(10.0M, (decimal)_clonedSettings.NormalSilenceThresholdSeconds));
+                numDictationMaxDuration.Value = Math.Max(1.0M, Math.Min(60.0M, (decimal)_clonedSettings.DictationMaxChunkDurationSeconds));
+                numDictationSilence.Value = Math.Max(0.1M, Math.Min(10.0M, (decimal)_clonedSettings.DictationSilenceThresholdSeconds));
+
+                chkShowRealtime.Checked = _clonedSettings.ShowRealtimeTranscription;
+                txtDictationModifiers.Text = _clonedSettings.DictationHotkeyModifiers;
+                txtDictationKey.Text = _clonedSettings.DictationHotkeyKey;
+                txtProofreadModifiers.Text = _clonedSettings.ProofreadHotkeyModifiers;
+                txtProofreadKey.Text = _clonedSettings.ProofreadHotkeyKey;
+
+                _loadingForm = false;
+                }
+            }
+
         private void llWhisper_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
             {
             try

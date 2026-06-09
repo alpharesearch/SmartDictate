@@ -92,6 +92,7 @@ namespace SmartDictateAI
             lblHotkeyNote = new Label();
             btnOK = new Button();
             btnCancel = new Button();
+            btnLoadDefaults = new Button();
             tabSettings.SuspendLayout();
             tabModels.SuspendLayout();
             grpLlmAdvanced.SuspendLayout();
@@ -785,6 +786,17 @@ namespace SmartDictateAI
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
             // 
+            // btnLoadDefaults
+            // 
+            btnLoadDefaults.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnLoadDefaults.Location = new Point(12, 510);
+            btnLoadDefaults.Name = "btnLoadDefaults";
+            btnLoadDefaults.Size = new Size(110, 32);
+            btnLoadDefaults.TabIndex = 3;
+            btnLoadDefaults.Text = "Load Defaults";
+            btnLoadDefaults.UseVisualStyleBackColor = true;
+            btnLoadDefaults.Click += btnLoadDefaults_Click;
+            // 
             // SettingsForm
             // 
             AcceptButton = btnOK;
@@ -792,6 +804,7 @@ namespace SmartDictateAI
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = btnCancel;
             ClientSize = new Size(610, 560);
+            Controls.Add(btnLoadDefaults);
             Controls.Add(btnCancel);
             Controls.Add(btnOK);
             Controls.Add(tabSettings);
@@ -861,6 +874,7 @@ namespace SmartDictateAI
         private System.Windows.Forms.CheckBox chkShowDebug;
         private System.Windows.Forms.Button btnOK;
         private System.Windows.Forms.Button btnCancel;
+        private System.Windows.Forms.Button btnLoadDefaults;
 
         // Advanced LLM Engine Controls (Tab 1)
         private System.Windows.Forms.GroupBox grpLlmAdvanced;
