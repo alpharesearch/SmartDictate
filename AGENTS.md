@@ -1,3 +1,38 @@
+# SmartDictate
+
+## Project Overview
+SmartDictate is a C# .NET 9 Windows Forms application that provides local, privacy-first voice dictation and text proofreading capabilities. It utilizes local machine learning models for both speech-to-text and text refinement, ensuring no data is sent to external servers.
+
+### Key Technologies
+*   **Framework:** .NET 9 (Windows Forms)
+*   **Speech-to-Text:** [Whisper.net](https://github.com/sandrohanea/whisper.net) using local GGML models.
+*   **Local LLM Inference:** [LLamaSharp](https://github.com/SciSharp/LLamaSharp) using local GGUF models (e.g., Qwen, Llama, Gemma).
+*   **Audio Capture:** NAudio.
+*   **Voice Activity Detection (VAD):** WebRtcVadSharp.
+*   **Configuration:** `Microsoft.Extensions.Configuration` for `appsettings.json` management.
+
+### Key Features
+*   **Global Dictation Mode:** Hotkey-triggered dictation that types transcribed text directly into any application.
+*   **Clipboard Proofreading:** Hotkey-triggered proofreading of clipboard text using a local LLM.
+*   **Local LLM Refinement:** Automatically corrects grammar, spelling, and punctuation.
+*   **Auto-Prompt Formatting:** Dynamically formats instructions based on the loaded LLM model (Qwen, Llama, Gemma).
+*   **Consolidated Tabbed Settings:** Adjust Whisper and LLM paths, VAD settings, silence thresholds, system/user prompt profiles, and custom hotkeys in a single unified settings form.
+*   **Multi-State Visual Pipeline Indicator:** Color-coded, real-time pipeline status feedback (Idle, Listening, Speech Detected, Processing).
+*   **Interactive Clipboard Rerun (`Rerun LLM` button):** Context-aware action that triggers LLM refinement on the active text buffer on-demand.
+*   **Real-time Monitoring:** Tracks System RAM and GPU VRAM usage.
+
+## Building and Running
+The project requires Visual Studio 2022 to build and run effectively, particularly due to the reliance on Windows Forms and specific platform targeting.
+
+1.  **Open Solution:** Open `SmartDictate.sln` in Visual Studio 2022.
+2.  **Platform Target:** Ensure the platform target is set to `x64`.
+3.  **Restore Packages:** Allow Visual Studio to restore NuGet packages.
+4.  **Run:** Press `F5` or click **Start** to build and launch the application.
+
+*Note: You must manually download the necessary Whisper (GGML) and LLM (GGUF) models and place them in the application directory or specify their paths in the UI/settings.*
+
+---
+
 # DOX framework
 
 - DOX is highly performant AGENTS.md hierarchy installed here
