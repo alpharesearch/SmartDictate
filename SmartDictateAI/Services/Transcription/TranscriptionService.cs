@@ -597,7 +597,7 @@ namespace SmartDictateAI
                     this.LastLLMProcessedText = refinedText;
                     this.WasLastProcessingWithLLM = true;
                     OnDebugMessage("[LLM] WaveSource_RecordingStopped: LLM processing complete.");
-                    finalTextToDisplay += $"{Environment.NewLine}{Environment.NewLine}--- LLM Refined ---{Environment.NewLine}{refinedText}";
+                    finalTextToDisplay += $"{Environment.NewLine}{Environment.NewLine}--- LLM Refined ({this.Settings.ActivePromptProfileName}) ---{Environment.NewLine}{refinedText}";
                 }
                 else if (this.Settings.ProcessWithLLM && string.IsNullOrWhiteSpace(rawFilteredFullText))
                 {

@@ -1000,10 +1000,13 @@ namespace SmartDictateAI
                 {
                 btnLLMcb.Enabled = false;
                 var LLM = await transcriptionService.ProcessTextWithLLMAsync(transcriptionService.LastRawFilteredText);
-                textBoxOutput.Text += Environment.NewLine;
-                textBoxOutput.Text += transcriptionService.LastRawFilteredText;
-                textBoxOutput.Text += Environment.NewLine;
-                textBoxOutput.Text += LLM;
+                
+                string profileName = transcriptionService.Settings.ActivePromptProfileName;
+                AppendToTranscriptionOutput("", true);
+                AppendToTranscriptionOutput($"--- LLM Refined ({profileName}) ---", true);
+                AppendToTranscriptionOutput(LLM, true);
+                AppendToTranscriptionOutput("----------------------------------------", true);
+
                 transcriptionService.LastLLMProcessedText = LLM;
                 transcriptionService.WasLastProcessingWithLLM = !string.IsNullOrWhiteSpace(LLM);
                 }
