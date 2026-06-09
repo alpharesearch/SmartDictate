@@ -23,13 +23,15 @@ namespace SmartDictateAI.Services
 
             if (settingsSection.Exists())
             {
-                // IMPORTANT: reset list so binder doesn't append.
+                // IMPORTANT: reset lists so binder doesn't append.
                 settings.PromptProfiles = new List<PromptProfile>();
+                settings.LLMAntiPrompts = new List<string>();
 
                 settingsSection.Bind(settings);
 
-                // If file has no profiles, inject defaults
+                // If file has no profiles or anti-prompts, inject defaults
                 settings.EnsureDefaultPromptProfiles();
+                settings.EnsureDefaultLLMAntiPrompts();
 
                 onDebugMessage?.Invoke($"[VAD] Loaded Whisper Model: {settings.ModelFilePath}, LLM Model: {settings.LocalLLMModelPath}, VAD Mode: {settings.VadMode}, Mic: {settings.SelectedMicrophoneDevice}");
             }

@@ -70,6 +70,24 @@ namespace SmartDictateAI.Tests
             Assert.Equal("E", loadedSettings.DictationHotkeyKey);
         }
 
+        [Fact]
+        public void LoadSettings_DoesNotDuplicateLLMAntiPrompts()
+        {
+            // Arrange
+            var service = new SettingsService();
+            var settings = new AppSettings();
+            // Save initial defaults
+            service.SaveSettings(_tempFilePath, settings);
+
+            // Act - Load multiple times
+            var loaded1 = service.LoadSettings(_tempFilePath);
+            service.SaveSettings(_tempFilePath, loaded1);
+            var loaded2 = service.LoadSettings(_tempFilePath);
+
+            // Assert
+            Assert.Equal(settings.LLMAntiPrompts.Count, loaded2.LLMAntiPrompts.Count);
+        }
+
         public void Dispose()
         {
             if (File.Exists(_tempFilePath))
