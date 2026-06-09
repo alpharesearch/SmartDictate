@@ -42,16 +42,15 @@ namespace SmartDictateAI.Services
                 // --- SOFTWARE GAIN FOR VAD ---
                 // Convert bytes to 16-bit samples, amplify, and convert back
                 byte[] amplifiedFrame = new byte[rawFrame.Length];
-                for (int i = 0; i < rawFrame.Length && i + 1 < rawFrame.Length; i += 2)
+                for (int i = 0; i < rawFrame.Length - 1; i += 2)
                 {
-                    short sample = BitConverter.ToInt16(rawFrame, i);
+                    short sample = (short)(rawFrame[i] | (rawFrame[i + 1] << 8));
                     // Multiply and clamp to prevent digital clipping
                     int boosted = (int)(sample * gainMultiplier);
                     short clamped = (short)Math.Clamp(boosted, short.MinValue, short.MaxValue);
 
-                    byte[] bytes = BitConverter.GetBytes(clamped);
-                    amplifiedFrame[i] = bytes[0];
-                    amplifiedFrame[i + 1] = bytes[1];
+                    amplifiedFrame[i] = (byte)(clamped & 0xFF);
+                    amplifiedFrame[i + 1] = (byte)((clamped >> 8) & 0xFF);
                 }
 
                 // Check speech on amplified frame

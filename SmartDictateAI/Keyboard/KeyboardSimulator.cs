@@ -98,7 +98,7 @@ public static class KeyboardSimulator
         if (string.IsNullOrWhiteSpace(textToSend)) return; // Don't send if filtering resulted in empty string
 
         // If text is long, prefer clipboard paste to avoid slow character-by-character SendInput
-        const int CLIPBOARD_PASTE_THRESHOLD = 20;
+        const int CLIPBOARD_PASTE_THRESHOLD = 200;
         if (textToSend.Length > CLIPBOARD_PASTE_THRESHOLD)
         {
             logger?.Invoke($"Using clipboard paste for long text (len={textToSend.Length}).");

@@ -473,13 +473,19 @@ namespace SmartDictateAI
 
             await WaitForCurrentTranscriptionToCompleteAsync();
 
-            // Capture the stream and writer that were active for the very last segment of audio
-            MemoryStream? finalActiveStream = this.currentAudioChunkStream;
-            WaveFileWriter? finalFile = this.chunkWaveFile;
+            MemoryStream? finalActiveStream;
+            WaveFileWriter? finalFile;
 
-            // Null out class fields so new recordings
-            this.currentAudioChunkStream = null;
-            this.chunkWaveFile = null;
+            lock (this._audioStreamLock)
+            {
+                // Capture the stream and writer that were active for the very last segment of audio
+                finalActiveStream = this.currentAudioChunkStream;
+                finalFile = this.chunkWaveFile;
+
+                // Null out class fields so new recordings
+                this.currentAudioChunkStream = null;
+                this.chunkWaveFile = null;
+            }
 
             // Unsubscribe from events
             _audioCaptureService.DataAvailable -= WaveSource_DataAvailable;
@@ -668,8 +674,6 @@ namespace SmartDictateAI
         public async Task<string> ProcessTextWithLLMAsync(string inputText, string setSystemPrompt = "", string setUserPrompt = "")
         {
             if (string.IsNullOrWhiteSpace(inputText))
-                return inputText;
-            if (!Settings.ProcessWithLLM)
                 return inputText;
 
             return await _llmService.RefineTextAsync(inputText, Settings, setSystemPrompt, setUserPrompt, OnDebugMessage);

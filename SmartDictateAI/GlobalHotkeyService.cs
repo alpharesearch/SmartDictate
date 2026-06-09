@@ -18,6 +18,7 @@ namespace SmartDictateAI
         // BACK-COMPAT: keep your original default ID for "the" hotkey
         private const int DEFAULT_HOTKEY_ID = 9000;
 
+        [Flags]
         public enum FsModifiers : uint
         {
             None = 0,

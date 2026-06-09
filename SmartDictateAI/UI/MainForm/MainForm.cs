@@ -234,6 +234,8 @@ namespace SmartDictateAI
 
         private void InitializeHotkeyService()
             {
+            globalHotkeyService.UnregisterAll();
+
             GlobalHotkeyService.FsModifiers dictationMods = GlobalHotkeyService.FsModifiers.Control | GlobalHotkeyService.FsModifiers.Alt;
             Keys dictationKey = Keys.D;
             try
@@ -279,6 +281,10 @@ namespace SmartDictateAI
                 {
                 AppendToDebugOutput($"[Hotkey] Global hotkey {transcriptionService.Settings.ProofreadHotkeyModifiers}+{transcriptionService.Settings.ProofreadHotkeyKey} registered for clipboard proofreading.");
                 }
+
+            // Update UI Labels with configured hotkeys
+            lblDictateInstruction.Text = $"{transcriptionService.Settings.DictationHotkeyModifiers} + {transcriptionService.Settings.DictationHotkeyKey} \r\nto dictate cursor.";
+            lblProofreadInstruction.Text = $"{transcriptionService.Settings.ProofreadHotkeyModifiers} + {transcriptionService.Settings.ProofreadHotkeyKey} \r\nto proofreads clipboard locally.";
             }
 
         private DateTime _lastHotkeyTime = DateTime.MinValue;
@@ -571,12 +577,6 @@ namespace SmartDictateAI
             UpdateButtonStates();
             UpdateStatusIndicator(DictationVisualState.Loading);
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages;
-
-            // Update UI Labels with configured hotkeys
-            lblDictateInstruction.Text = $"{transcriptionService.Settings.DictationHotkeyModifiers} + {transcriptionService.Settings.DictationHotkeyKey} \r\nto dictate cursor.";
-            lblProofreadInstruction.Text = $"{transcriptionService.Settings.ProofreadHotkeyModifiers} + {transcriptionService.Settings.ProofreadHotkeyKey} \r\nto proofreads clipboard locally.";
-
-
 
             InitializeVramMonitor();
 
@@ -924,6 +924,9 @@ namespace SmartDictateAI
 
                     // Save settings
                     transcriptionService.SaveAppSettings();
+
+                    // Re-initialize hotkey service with new hotkeys and update instruction labels
+                    InitializeHotkeyService();
 
                     // Apply UI visibility updates
                     UpdateUIFromServiceSettings();
