@@ -16,26 +16,30 @@ namespace SmartDictateAI.Tests
             settings.EnsureDefaultPromptProfiles();
 
             // Assert
-            // Ensure exactly 9 defaults are added (adjust if there are more)
-            Assert.Equal(9, settings.PromptProfiles.Count);
+            // Ensure exactly 12 defaults are added
+            Assert.Equal(12, settings.PromptProfiles.Count);
             Assert.Contains(settings.PromptProfiles, p => p.Name == "Strict Proofreader");
             Assert.Contains(settings.PromptProfiles, p => p.Name == "German Copy Editor");
         }
 
         [Fact]
-        public void EnsureDefaultPromptProfiles_WhenListHasItems_DoesNotDuplicate()
+        public void EnsureDefaultPromptProfiles_DoesNotDuplicateExisting()
         {
             // Arrange
             var settings = new AppSettings();
             settings.PromptProfiles.Clear();
-            settings.PromptProfiles.Add(new PromptProfile { Name = "Custom Profile" });
+            settings.PromptProfiles.Add(new PromptProfile { Name = "Strict Proofreader", SystemPrompt = "CustomSP", UserPrompt = "CustomUP" });
 
             // Act
             settings.EnsureDefaultPromptProfiles();
 
             // Assert
-            Assert.Single(settings.PromptProfiles); // It should still only have 1 item
-            Assert.Equal("Custom Profile", settings.PromptProfiles[0].Name);
+            // It should have exactly 12 default profiles, but the one we customized beforehand should remain customized
+            Assert.Equal(12, settings.PromptProfiles.Count);
+            var strict = settings.PromptProfiles.Find(p => p.Name == "Strict Proofreader");
+            Assert.NotNull(strict);
+            Assert.Equal("CustomSP", strict.SystemPrompt);
+            Assert.Equal("CustomUP", strict.UserPrompt);
         }
 
         [Fact]

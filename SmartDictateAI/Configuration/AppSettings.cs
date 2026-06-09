@@ -98,9 +98,13 @@ namespace SmartDictateAI
             if (PromptProfiles == null)
                 PromptProfiles = new List<PromptProfile>();
 
-            if (PromptProfiles.Count == 0)
+            var defaultProfiles = GetDefaultPromptProfiles();
+            foreach (var def in defaultProfiles)
             {
-                PromptProfiles.AddRange(GetDefaultPromptProfiles());
+                if (!PromptProfiles.Any(p => p.Name.Equals(def.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    PromptProfiles.Add(def);
+                }
             }
         }
 
@@ -160,6 +164,24 @@ namespace SmartDictateAI
                 Name = "Tone: Diplomatic & Polite",
                 SystemPrompt = "You are a communications expert. Your task is to rewrite the provided text so that it sounds highly polite, diplomatic, and constructive, while keeping the original meaning intact. Output ONLY the rewritten text.",
                 UserPrompt = "Rewrite the following text to be more diplomatic and polite. Do not include any explanations. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Tone: Casual & Friendly",
+                SystemPrompt = "You are a friendly writing assistant. Your task is to rewrite the provided text to have a warm, casual, and friendly tone, while preserving the original meaning. Avoid formal or stiff phrasing. Output ONLY the rewritten text.",
+                UserPrompt = "Rewrite the following text to sound casual and friendly. Do not include any explanations. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Tone: Concise & Direct",
+                SystemPrompt = "You are a professional editor. Your task is to make the provided text highly concise and direct, removing redundant words or filler phrasing while retaining all key details. Output ONLY the rewritten text.",
+                UserPrompt = "Rewrite the following text to be concise and direct. Do not include any explanations. Text:\n"
+            },
+            new PromptProfile
+            {
+                Name = "Tone: Academic & Scholarly",
+                SystemPrompt = "You are an academic writing consultant. Your task is to rewrite the provided text in a formal, precise, and scholarly tone suitable for research papers or academic publishing. Output ONLY the rewritten text.",
+                UserPrompt = "Rewrite the following text to be formal and academic. Do not include any explanations. Text:\n"
             },
             new PromptProfile
             {
