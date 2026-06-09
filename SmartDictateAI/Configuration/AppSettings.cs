@@ -50,7 +50,7 @@ namespace SmartDictateAI
         // Always start with an empty list so Binder can fill it cleanly.
         public List<PromptProfile> PromptProfiles { get; set; } = new();
 
-        public string ActivePromptProfileName { get; set; } = "Strict Proofreader";
+        public string ActivePromptProfileName { get; set; } = "Copy Editor";
 
         public void CopyFrom(AppSettings source)
         {
@@ -85,11 +85,11 @@ namespace SmartDictateAI
             ActivePromptProfileName = source.ActivePromptProfileName;
             PromptProfiles = source.PromptProfiles != null
                 ? source.PromptProfiles.Select(p => new PromptProfile
-                    {
+                {
                     Name = p.Name,
                     SystemPrompt = p.SystemPrompt,
                     UserPrompt = p.UserPrompt
-                    }).ToList()
+                }).ToList()
                 : new List<PromptProfile>();
         }
 
