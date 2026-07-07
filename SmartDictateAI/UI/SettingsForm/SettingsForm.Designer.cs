@@ -82,9 +82,6 @@ namespace SmartDictateAI
             chkShowRealtime = new CheckBox();
             grpHotkeys = new GroupBox();
             txtDictationModifiers = new TextBox();
-            grpCustomVocabulary = new GroupBox();
-            lblCustomVocabHelp = new Label();
-            txtCustomVocabulary = new TextBox();
             lblDictationMods = new Label();
             txtDictationKey = new TextBox();
             lblDictationKey = new Label();
@@ -93,6 +90,9 @@ namespace SmartDictateAI
             txtProofreadKey = new TextBox();
             lblProofreadKey = new Label();
             lblHotkeyNote = new Label();
+            grpCustomVocabulary = new GroupBox();
+            lblCustomVocabHelp = new Label();
+            txtCustomVocabulary = new TextBox();
             btnOK = new Button();
             btnCancel = new Button();
             btnLoadDefaults = new Button();
@@ -689,7 +689,7 @@ namespace SmartDictateAI
             grpHotkeys.Controls.Add(lblHotkeyNote);
             grpHotkeys.Location = new Point(15, 90);
             grpHotkeys.Name = "grpHotkeys";
-            grpHotkeys.Size = new Size(550, 240);
+            grpHotkeys.Size = new Size(550, 202);
             grpHotkeys.TabIndex = 2;
             grpHotkeys.TabStop = false;
             grpHotkeys.Text = "Global Keyboard Hotkey Overrides";
@@ -772,9 +772,9 @@ namespace SmartDictateAI
             // 
             grpCustomVocabulary.Controls.Add(lblCustomVocabHelp);
             grpCustomVocabulary.Controls.Add(txtCustomVocabulary);
-            grpCustomVocabulary.Location = new Point(15, 338);
+            grpCustomVocabulary.Location = new Point(15, 298);
             grpCustomVocabulary.Name = "grpCustomVocabulary";
-            grpCustomVocabulary.Size = new Size(550, 105);
+            grpCustomVocabulary.Size = new Size(550, 145);
             grpCustomVocabulary.TabIndex = 3;
             grpCustomVocabulary.TabStop = false;
             grpCustomVocabulary.Text = "Custom Vocabulary (Jargon / Brand Names)";
@@ -784,7 +784,7 @@ namespace SmartDictateAI
             lblCustomVocabHelp.AutoSize = true;
             lblCustomVocabHelp.Location = new Point(15, 22);
             lblCustomVocabHelp.Name = "lblCustomVocabHelp";
-            lblCustomVocabHelp.Size = new Size(504, 15);
+            lblCustomVocabHelp.Size = new Size(482, 15);
             lblCustomVocabHelp.TabIndex = 0;
             lblCustomVocabHelp.Text = "Enter words/phrases (comma-separated) to bias Whisper and instruct the LLM to preserve:";
             // 
@@ -794,7 +794,7 @@ namespace SmartDictateAI
             txtCustomVocabulary.Multiline = true;
             txtCustomVocabulary.Name = "txtCustomVocabulary";
             txtCustomVocabulary.ScrollBars = ScrollBars.Vertical;
-            txtCustomVocabulary.Size = new Size(520, 50);
+            txtCustomVocabulary.Size = new Size(520, 85);
             txtCustomVocabulary.TabIndex = 1;
             // 
             // btnOK
