@@ -40,6 +40,7 @@ namespace SmartDictateAI
         public double DictationSilenceThresholdSeconds { get; set; } = 0.75;
         public float VadGainMultiplier { get; set; } = 1.0f;
         public bool MaintainContextAcrossChunks { get; set; } = true;
+        public string CustomVocabulary { get; set; } = "SIMATIC, WinCC, WinCC flexible, WinCC Unified, TIA Portal, Comfort Panel, Basic Panel, Mobile Panel, Key Panel, Sm@rtServer, PROFINET, PROFIBUS, SCALANCE, RUGGEDCOM, OPC UA, Industrial Ethernet, SINEMA, STEP 7, S7-1200, S7-1500, S7-300, S7-400, ET 200SP, ET 200MP, SITOP, SIPLUS, LOGO!";
 
         // Hotkey Settings
         public string DictationHotkeyModifiers { get; set; } = "Control, Alt";
@@ -78,6 +79,7 @@ namespace SmartDictateAI
             DictationSilenceThresholdSeconds = source.DictationSilenceThresholdSeconds;
             VadGainMultiplier = source.VadGainMultiplier;
             MaintainContextAcrossChunks = source.MaintainContextAcrossChunks;
+            CustomVocabulary = source.CustomVocabulary;
             DictationHotkeyModifiers = source.DictationHotkeyModifiers;
             DictationHotkeyKey = source.DictationHotkeyKey;
             ProofreadHotkeyModifiers = source.ProofreadHotkeyModifiers;

@@ -75,6 +75,11 @@ namespace SmartDictateAI.Services
             var systemPrompt = string.IsNullOrEmpty(systemPromptOverride) ? settings.LLMSystemPrompt : systemPromptOverride;
             var userPrompt = string.IsNullOrEmpty(userPromptOverride) ? settings.LLMUserPrompt : userPromptOverride;
 
+            if (!string.IsNullOrWhiteSpace(settings.CustomVocabulary))
+            {
+                systemPrompt += $"\n\nCRITICAL: The user has specified the following custom vocabulary terms that must be preserved exactly with their correct spelling and capitalization if they appear phonetically or as similar misrecognized words in the transcription (do not change or 'correct' them to general words): {settings.CustomVocabulary}";
+            }
+
             if (_llmExecutor == null)
             {
                 if (!Initialize(settings.LocalLLMModelPath, settings.LLMContextSize, settings.UseGpu, onDebugMessage))

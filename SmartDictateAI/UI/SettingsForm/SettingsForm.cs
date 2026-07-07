@@ -68,6 +68,7 @@ namespace SmartDictateAI
 
             // 4. General Tab
             chkShowDebug.Checked = _clonedSettings.ShowDebugMessages;
+            txtCustomVocabulary.Text = _clonedSettings.CustomVocabulary;
 
 
 
@@ -370,6 +371,7 @@ namespace SmartDictateAI
             _clonedSettings.DictationSilenceThresholdSeconds = (double)numDictationSilence.Value;
 
             _clonedSettings.ShowRealtimeTranscription = chkShowRealtime.Checked;
+            _clonedSettings.CustomVocabulary = txtCustomVocabulary.Text.Trim();
             _clonedSettings.DictationHotkeyModifiers = dictationMods;
             _clonedSettings.DictationHotkeyKey = dictationKey;
             _clonedSettings.ProofreadHotkeyModifiers = proofreadMods;
@@ -459,6 +461,7 @@ namespace SmartDictateAI
                 txtDictationKey.Text = _clonedSettings.DictationHotkeyKey;
                 txtProofreadModifiers.Text = _clonedSettings.ProofreadHotkeyModifiers;
                 txtProofreadKey.Text = _clonedSettings.ProofreadHotkeyKey;
+                txtCustomVocabulary.Text = _clonedSettings.CustomVocabulary;
 
                 _loadingForm = false;
                 }

@@ -638,7 +638,8 @@ namespace SmartDictateAI
 
             try
             {
-                string promptText = string.Empty;
+                string customVocab = Settings.CustomVocabulary?.Trim() ?? string.Empty;
+                string promptText = customVocab;
                 if (Settings.MaintainContextAcrossChunks)
                 {
                     lock (currentSessionTranscribedText)
@@ -646,8 +647,12 @@ namespace SmartDictateAI
                         if (currentSessionTranscribedText.Count > 0)
                         {
                             // Grab the last few phrases to use as context for the new chunk
-                            promptText = string.Join(" ", currentSessionTranscribedText.TakeLast(4));
-                            if (promptText.Length > 200) promptText = promptText.Substring(promptText.Length - 200);
+                            string contextText = string.Join(" ", currentSessionTranscribedText.TakeLast(4));
+                            if (contextText.Length > 200) contextText = contextText.Substring(contextText.Length - 200);
+                            
+                            promptText = string.IsNullOrEmpty(customVocab)
+                                ? contextText
+                                : customVocab + " " + contextText;
                         }
                     }
                 }

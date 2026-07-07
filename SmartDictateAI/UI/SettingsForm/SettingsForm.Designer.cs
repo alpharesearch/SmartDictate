@@ -82,6 +82,9 @@ namespace SmartDictateAI
             chkShowRealtime = new CheckBox();
             grpHotkeys = new GroupBox();
             txtDictationModifiers = new TextBox();
+            grpCustomVocabulary = new GroupBox();
+            lblCustomVocabHelp = new Label();
+            txtCustomVocabulary = new TextBox();
             lblDictationMods = new Label();
             txtDictationKey = new TextBox();
             lblDictationKey = new Label();
@@ -112,6 +115,7 @@ namespace SmartDictateAI
             tabLlmPrompts.SuspendLayout();
             tabGeneral.SuspendLayout();
             grpHotkeys.SuspendLayout();
+            grpCustomVocabulary.SuspendLayout();
             SuspendLayout();
             // 
             // tabSettings
@@ -641,6 +645,7 @@ namespace SmartDictateAI
             tabGeneral.Controls.Add(chkShowDebug);
             tabGeneral.Controls.Add(chkShowRealtime);
             tabGeneral.Controls.Add(grpHotkeys);
+            tabGeneral.Controls.Add(grpCustomVocabulary);
             tabGeneral.Location = new Point(4, 24);
             tabGeneral.Name = "tabGeneral";
             tabGeneral.Padding = new Padding(3);
@@ -763,6 +768,35 @@ namespace SmartDictateAI
             lblHotkeyNote.TabIndex = 8;
             lblHotkeyNote.Text = "⚠️ Modifiers must be comma-separated combinations of Control, Alt, Shift, or Windows. Key is a letter, number, or function key. Changes require an application restart to take effect on system hooks.";
             // 
+            // grpCustomVocabulary
+            // 
+            grpCustomVocabulary.Controls.Add(lblCustomVocabHelp);
+            grpCustomVocabulary.Controls.Add(txtCustomVocabulary);
+            grpCustomVocabulary.Location = new Point(15, 338);
+            grpCustomVocabulary.Name = "grpCustomVocabulary";
+            grpCustomVocabulary.Size = new Size(550, 105);
+            grpCustomVocabulary.TabIndex = 3;
+            grpCustomVocabulary.TabStop = false;
+            grpCustomVocabulary.Text = "Custom Vocabulary (Jargon / Brand Names)";
+            // 
+            // lblCustomVocabHelp
+            // 
+            lblCustomVocabHelp.AutoSize = true;
+            lblCustomVocabHelp.Location = new Point(15, 22);
+            lblCustomVocabHelp.Name = "lblCustomVocabHelp";
+            lblCustomVocabHelp.Size = new Size(504, 15);
+            lblCustomVocabHelp.TabIndex = 0;
+            lblCustomVocabHelp.Text = "Enter words/phrases (comma-separated) to bias Whisper and instruct the LLM to preserve:";
+            // 
+            // txtCustomVocabulary
+            // 
+            txtCustomVocabulary.Location = new Point(15, 42);
+            txtCustomVocabulary.Multiline = true;
+            txtCustomVocabulary.Name = "txtCustomVocabulary";
+            txtCustomVocabulary.ScrollBars = ScrollBars.Vertical;
+            txtCustomVocabulary.Size = new Size(520, 50);
+            txtCustomVocabulary.TabIndex = 1;
+            // 
             // btnOK
             // 
             btnOK.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -842,6 +876,8 @@ namespace SmartDictateAI
             tabGeneral.PerformLayout();
             grpHotkeys.ResumeLayout(false);
             grpHotkeys.PerformLayout();
+            grpCustomVocabulary.ResumeLayout(false);
+            grpCustomVocabulary.PerformLayout();
             ResumeLayout(false);
             }
 
@@ -917,5 +953,8 @@ namespace SmartDictateAI
         private System.Windows.Forms.Label lblHotkeyNote;
         private LinkLabel llLLM;
         private LinkLabel llWhisper;
+        private System.Windows.Forms.GroupBox grpCustomVocabulary;
+        private System.Windows.Forms.Label lblCustomVocabHelp;
+        private System.Windows.Forms.TextBox txtCustomVocabulary;
         }
 }
