@@ -305,8 +305,11 @@ namespace SmartDictateAI.PerformanceTests
             benchmarkResult.PeakRamMb = peakRamMb;
             benchmarkResult.PeakVramMb = peakVramMb;
 
+            benchmarkResult.AccuracyScore = TestCases.Count > 0 ? (double)benchmarkResult.PassedCases / TestCases.Count : 0;
+
             // Add result & trigger report update
             PerformanceReportGenerator.AddResult(benchmarkResult);
+
 
             // Clean up resources explicitly
             await llmService.DisposeResourcesAsync(msg => Console.WriteLine(msg));

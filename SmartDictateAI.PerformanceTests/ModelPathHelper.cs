@@ -45,5 +45,34 @@ namespace SmartDictateAI.PerformanceTests
             var sub = Path.Combine(root, "whisper");
             return Directory.Exists(sub) ? sub : root;
         }
+
+        /// <summary>
+        /// Locates the specified asset file. First checks the output directory's Assets folder,
+        /// then falls back to walking up to the source project's Assets directory.
+        /// </summary>
+        public static string GetAssetPath(string fileName)
+        {
+            // 1. Check output directory
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var localAsset = Path.Combine(baseDir, "Assets", fileName);
+            if (File.Exists(localAsset))
+            {
+                return localAsset;
+            }
+
+            // 2. Check source project folder by walking up to solution root
+            var dir = new DirectoryInfo(baseDir);
+            while (dir != null)
+            {
+                var target = Path.Combine(dir.FullName, "SmartDictateAI.PerformanceTests", "Assets", fileName);
+                if (File.Exists(target))
+                {
+                    return target;
+                }
+                dir = dir.Parent;
+            }
+
+            throw new FileNotFoundException($"Could not find asset '{fileName}' in build output or source folders.");
+        }
     }
 }

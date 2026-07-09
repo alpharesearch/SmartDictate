@@ -9,13 +9,14 @@ SmartDictate Quality Assurance / Core Performance.
 ## Local Contracts
 - **Framework**: xUnit is the testing framework.
 - **Platform Target**: Must target `net9.0-windows` and platform `x64` to load native backends for Whisper.net and LLamaSharp.
-- **Skipping Protocol**: Performance tests require real GGUF and GGML files to be present on disk, which are large and resource-intensive. Tests use the custom `[PerformanceFact]` attribute to dynamically skip execution unless the environment variable `RUN_LLM_PERF=true` is set OR an empty file named `.run_perf` is created in the solution root or `models/` folder.
+- **Skipping Protocol**: Performance tests require real GGUF and GGML files to be present on disk, which are large and resource-intensive. Tests use standard xUnit attributes but implement a runtime bypass: they exit early as "Passed" unless the environment variable `RUN_LLM_PERF=true` is set OR an empty file named `.run_perf` is created in the solution root or `models/` folder. This ensures the tests are always listed in the IDE.
 - **Model Storage**: Tests look for models inside `models/llm/` and `models/whisper/` folders, with a fallback to the root `models/` directory.
 - **Metrics Outputs**: Results from each run are compiled dynamically into `llm_performance_report.md` at the solution root folder.
 
 ## Work Guidance
 - Models should be configured with a fixed seed (e.g. `LLMSeed = 42`) and low temperature (`LLMTemperature = 0.2f`) to ensure deterministic output comparisons.
-- The Whisper test requires `whisper_benchmark.wav` and `whisper_benchmark.txt` in the `models/whisper/` (or `models/`) folder.
+- The Whisper test requires `whisper_benchmark.wav` and `whisper_benchmark.txt` to be present in the `SmartDictateAI.PerformanceTests/Assets/` folder.
+
 
 ## Verification
 - To execute the performance tests via CLI, set the environment variable and run:

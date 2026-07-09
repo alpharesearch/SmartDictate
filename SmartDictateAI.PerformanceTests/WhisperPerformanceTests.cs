@@ -56,27 +56,25 @@ namespace SmartDictateAI.PerformanceTests
                 return;
             }
 
-            var whisperDir = ModelPathHelper.GetWhisperModelsDirectory();
-            var wavPath = Path.Combine(whisperDir, "whisper_benchmark.wav");
-            var txtPath = Path.Combine(whisperDir, "whisper_benchmark.txt");
-
-            if (!File.Exists(wavPath) || !File.Exists(txtPath))
+            string wavPath;
+            string txtPath;
+            try
             {
-                // Fallback to parent models folder
-                var rootDir = ModelPathHelper.GetModelsDirectory();
-                wavPath = Path.Combine(rootDir, "whisper_benchmark.wav");
-                txtPath = Path.Combine(rootDir, "whisper_benchmark.txt");
+                wavPath = ModelPathHelper.GetAssetPath("whisper_benchmark.wav");
+                txtPath = ModelPathHelper.GetAssetPath("whisper_benchmark.txt");
             }
-
-            // If files are missing, we skip and log instructions
-            if (!File.Exists(wavPath) || !File.Exists(txtPath))
+            catch (Exception ex)
             {
-                Assert.Fail($"Missing benchmark files. Place 'whisper_benchmark.wav' and 'whisper_benchmark.txt' in '{whisperDir}' to run.");
+                Assert.Fail($"Missing benchmark files: {ex.Message} Please ensure 'whisper_benchmark.wav' and 'whisper_benchmark.txt' are in the 'SmartDictateAI.PerformanceTests/Assets' folder.");
                 return;
             }
 
+
+            var whisperDir = ModelPathHelper.GetWhisperModelsDirectory();
+
             // Resolve path if using the fallback model list
             if (string.IsNullOrEmpty(modelPath))
+
             {
                 try
                 {
@@ -236,8 +234,11 @@ namespace SmartDictateAI.PerformanceTests
             benchmarkResult.PeakRamMb = peakRamMb;
             benchmarkResult.PeakVramMb = peakVramMb;
 
+            benchmarkResult.AccuracyScore = similarity;
+
             // Add result & trigger report update
             PerformanceReportGenerator.AddResult(benchmarkResult);
+
 
             // Clean up resources explicitly
             await whisperService.DisposeResourcesAsync(msg => Console.WriteLine(msg));
