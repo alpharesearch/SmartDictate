@@ -131,3 +131,5 @@ When the user requests a durable behavior change, record it here or in the relev
   - [Keyboard](file:///d:/GitHub/SmartDictate/SmartDictateAI/Keyboard/AGENTS.md) - Input typing simulator
   - [Configuration](file:///d:/GitHub/SmartDictate/SmartDictateAI/Configuration/AGENTS.md) - App settings structure and schema mappings
 - [SmartDictateAI.Tests](file:///d:/GitHub/SmartDictate/SmartDictateAI.Tests/AGENTS.md) - xUnit testing project for checking services and business logic
+- [SmartDictateAI.PerformanceTests](file:///d:/GitHub/SmartDictate/SmartDictateAI.PerformanceTests/AGENTS.md) - Performance testing suite for local LLM and Whisper models
+
