@@ -10,15 +10,17 @@ using System.Threading;
 
 namespace SmartDictateAI.PerformanceTests
 {
+    internal class TestPrompt
+    {
+        public string Name { get; set; } = "";
+        public string Input { get; set; } = "";
+        public string[] ExpectedSubstrings { get; set; } = Array.Empty<string>();
+        public string[] ForbiddenSubstrings { get; set; } = Array.Empty<string>();
+    }
+
     public class LLMPerformanceTests
     {
-        private class TestPrompt
-        {
-            public string Name { get; set; } = "";
-            public string Input { get; set; } = "";
-            public string[] ExpectedSubstrings { get; set; } = Array.Empty<string>();
-            public string[] ForbiddenSubstrings { get; set; } = Array.Empty<string>();
-        }
+
 
         private static readonly List<TestPrompt> TestCases = new()
         {

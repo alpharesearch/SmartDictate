@@ -43,6 +43,8 @@ Models/
 *.temp
 local.settings.json
 appsettings.Development.json # Often contains secrets or local overrides
+llm_performance_report.md
+
 
 # Large binary files (like your models)
 # It's better to download these separately or use Git LFS if they *must* be in the repo.
