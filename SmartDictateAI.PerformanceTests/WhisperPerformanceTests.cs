@@ -26,19 +26,36 @@ namespace SmartDictateAI.PerformanceTests
                     binFiles = Directory.GetFiles(rootDir, "*.bin");
                 }
 
-                return binFiles.Select(f => new object[] { Path.GetFileName(f), f });
+                if (binFiles.Length > 0)
+                {
+                    return binFiles.Select(f => new object[] { Path.GetFileName(f), f });
+                }
             }
             catch
             {
-                return Enumerable.Empty<object[]>();
+                // Directory scanning failed or directory not found during discovery
             }
+
+            // Fallback list of models so they are ALWAYS listed in the Test Explorer
+            return new List<object[]>
+            {
+                new object[] { "ggml-large-v3-turbo-q8_0.bin", "" },
+                new object[] { "ggml-base.bin", "" }
+            };
         }
 
-        [PerformanceTheory]
+        [Theory]
         [MemberData(nameof(GetWhisperModels))]
         [Trait("Category", "Performance")]
         public async Task Benchmark_Whisper_Model(string modelName, string modelPath)
         {
+            // Runtime skip check
+            if (!PerformanceTestHelper.ShouldRun())
+            {
+                Console.WriteLine($"Bypassing Whisper benchmark for {modelName} (performance runs are not enabled).");
+                return;
+            }
+
             var whisperDir = ModelPathHelper.GetWhisperModelsDirectory();
             var wavPath = Path.Combine(whisperDir, "whisper_benchmark.wav");
             var txtPath = Path.Combine(whisperDir, "whisper_benchmark.txt");
@@ -54,9 +71,29 @@ namespace SmartDictateAI.PerformanceTests
             // If files are missing, we skip and log instructions
             if (!File.Exists(wavPath) || !File.Exists(txtPath))
             {
-                Console.WriteLine("[Whisper Tests] Missing benchmark files. Place 'whisper_benchmark.wav' and 'whisper_benchmark.txt' in 'models/whisper/' to run.");
+                Assert.Fail($"Missing benchmark files. Place 'whisper_benchmark.wav' and 'whisper_benchmark.txt' in '{whisperDir}' to run.");
                 return;
             }
+
+            // Resolve path if using the fallback model list
+            if (string.IsNullOrEmpty(modelPath))
+            {
+                try
+                {
+                    modelPath = Path.Combine(whisperDir, modelName);
+                    if (!File.Exists(modelPath))
+                    {
+                        var rootDir = ModelPathHelper.GetModelsDirectory();
+                        modelPath = Path.Combine(rootDir, modelName);
+                    }
+                }
+                catch
+                {
+                    modelPath = modelName;
+                }
+            }
+
+            Assert.True(File.Exists(modelPath), $"Whisper model file '{modelName}' was not found on disk at '{modelPath}'. Place it in 'models/whisper/' to run the benchmark.");
 
             string expectedText = File.ReadAllText(txtPath).Trim();
             double audioDurationSec = 0;

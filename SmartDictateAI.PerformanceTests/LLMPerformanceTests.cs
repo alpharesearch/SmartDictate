@@ -58,19 +58,59 @@ namespace SmartDictateAI.PerformanceTests
                     ggufFiles = Directory.GetFiles(rootDir, "*.gguf");
                 }
 
-                return ggufFiles.Select(f => new object[] { Path.GetFileName(f), f });
+                if (ggufFiles.Length > 0)
+                {
+                    return ggufFiles.Select(f => new object[] { Path.GetFileName(f), f });
+                }
             }
             catch
             {
-                return Enumerable.Empty<object[]>();
+                // Directory scanning failed or directory not found during discovery
             }
+
+            // Fallback list of models so they are ALWAYS listed in the Test Explorer
+            return new List<object[]>
+            {
+                new object[] { "gemma-4-E4B-it-Q4_K_M.gguf", "" },
+                new object[] { "Llama-3.2-3B-Instruct-Q8_0.gguf", "" },
+                new object[] { "qwen2-0_5b-instruct-q8_0.gguf", "" },
+                new object[] { "gemma-4-E2B-it-Q4_0.gguf", "" }
+            };
         }
 
-        [PerformanceTheory]
+        [Theory]
         [MemberData(nameof(GetLLMModels))]
         [Trait("Category", "Performance")]
         public async Task Benchmark_LLM_Model(string modelName, string modelPath)
         {
+            // Runtime skip check
+            if (!PerformanceTestHelper.ShouldRun())
+            {
+                Console.WriteLine($"Bypassing LLM benchmark for {modelName} (performance runs are not enabled).");
+                return;
+            }
+
+            // Resolve path if using the fallback model list
+            if (string.IsNullOrEmpty(modelPath))
+            {
+                try
+                {
+                    var llmDir = ModelPathHelper.GetLLMModelsDirectory();
+                    modelPath = Path.Combine(llmDir, modelName);
+                    if (!File.Exists(modelPath))
+                    {
+                        var rootDir = ModelPathHelper.GetModelsDirectory();
+                        modelPath = Path.Combine(rootDir, modelName);
+                    }
+                }
+                catch
+                {
+                    modelPath = modelName; // Fallback
+                }
+            }
+
+            Assert.True(File.Exists(modelPath), $"Model file '{modelName}' was not found on disk at '{modelPath}'. Place it in 'models/llm/' to run the benchmark.");
+
             var fileSizeGb = new FileInfo(modelPath).Length / (1024.0 * 1024.0 * 1024.0);
 
             var benchmarkResult = new ModelBenchmarkResult
