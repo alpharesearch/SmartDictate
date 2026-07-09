@@ -13,22 +13,33 @@ namespace SmartDictateAI.PerformanceTests
 {
     public class WhisperPerformanceTests
     {
-        [PerformanceFact]
+        public static IEnumerable<object[]> GetWhisperModels()
+        {
+            try
+            {
+                var whisperDir = ModelPathHelper.GetWhisperModelsDirectory();
+                var binFiles = Directory.GetFiles(whisperDir, "*.bin");
+
+                if (binFiles.Length == 0)
+                {
+                    var rootDir = ModelPathHelper.GetModelsDirectory();
+                    binFiles = Directory.GetFiles(rootDir, "*.bin");
+                }
+
+                return binFiles.Select(f => new object[] { Path.GetFileName(f), f });
+            }
+            catch
+            {
+                return Enumerable.Empty<object[]>();
+            }
+        }
+
+        [PerformanceTheory]
+        [MemberData(nameof(GetWhisperModels))]
         [Trait("Category", "Performance")]
-        public async Task Benchmark_All_Whisper_Models()
+        public async Task Benchmark_Whisper_Model(string modelName, string modelPath)
         {
             var whisperDir = ModelPathHelper.GetWhisperModelsDirectory();
-            var binFiles = Directory.GetFiles(whisperDir, "*.bin");
-
-            if (binFiles.Length == 0)
-            {
-                // Fallback to parent models folder
-                var rootDir = ModelPathHelper.GetModelsDirectory();
-                binFiles = Directory.GetFiles(rootDir, "*.bin");
-            }
-
-            Assert.True(binFiles.Length > 0, $"No Whisper model bin files found in '{whisperDir}' or parent 'models/' folder.");
-
             var wavPath = Path.Combine(whisperDir, "whisper_benchmark.wav");
             var txtPath = Path.Combine(whisperDir, "whisper_benchmark.txt");
 
@@ -43,7 +54,7 @@ namespace SmartDictateAI.PerformanceTests
             // If files are missing, we skip and log instructions
             if (!File.Exists(wavPath) || !File.Exists(txtPath))
             {
-                Console.WriteLine("[Whisper Tests] Missing benchmark files. Placed 'whisper_benchmark.wav' and 'whisper_benchmark.txt' in 'models/whisper/' to run.");
+                Console.WriteLine("[Whisper Tests] Missing benchmark files. Place 'whisper_benchmark.wav' and 'whisper_benchmark.txt' in 'models/whisper/' to run.");
                 return;
             }
 
@@ -60,143 +71,139 @@ namespace SmartDictateAI.PerformanceTests
                 Assert.Fail($"Failed to read WAV file header for '{wavPath}': {ex.Message}");
             }
 
-            foreach (var modelPath in binFiles)
+            var fileSizeGb = new FileInfo(modelPath).Length / (1024.0 * 1024.0 * 1024.0);
+
+            var benchmarkResult = new ModelBenchmarkResult
             {
-                var modelName = Path.GetFileName(modelPath);
-                var fileSizeGb = new FileInfo(modelPath).Length / (1024.0 * 1024.0 * 1024.0);
+                ModelName = modelName,
+                ModelType = "Whisper",
+                FileSizeGb = fileSizeGb,
+                TotalCases = 1
+            };
 
-                var benchmarkResult = new ModelBenchmarkResult
+            using var whisperService = new WhisperService();
+
+            // Memory peak tracking
+            double peakRamMb = 0;
+            double peakVramMb = 0;
+            var cts = new CancellationTokenSource();
+
+            var vramCounters = new List<PerformanceCounter>();
+            try
+            {
+                var pid = Process.GetCurrentProcess().Id;
+                var category = new PerformanceCounterCategory("GPU Process Memory");
+                var instances = category.GetInstanceNames();
+                var pidPrefix = $"pid_{pid}_";
+                foreach (var instance in instances)
                 {
-                    ModelName = modelName,
-                    ModelType = "Whisper",
-                    FileSizeGb = fileSizeGb,
-                    TotalCases = 1
-                };
-
-                using var whisperService = new WhisperService();
-
-                // Memory peak tracking
-                double peakRamMb = 0;
-                double peakVramMb = 0;
-                var cts = new CancellationTokenSource();
-
-                var vramCounters = new List<PerformanceCounter>();
-                try
-                {
-                    var pid = Process.GetCurrentProcess().Id;
-                    var category = new PerformanceCounterCategory("GPU Process Memory");
-                    var instances = category.GetInstanceNames();
-                    var pidPrefix = $"pid_{pid}_";
-                    foreach (var instance in instances)
+                    if (instance.StartsWith(pidPrefix, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (instance.StartsWith(pidPrefix, StringComparison.OrdinalIgnoreCase))
-                        {
-                            vramCounters.Add(new PerformanceCounter("GPU Process Memory", "Dedicated Usage", instance, true));
-                        }
+                        vramCounters.Add(new PerformanceCounter("GPU Process Memory", "Dedicated Usage", instance, true));
                     }
                 }
-                catch { /* Headless or OS non-supported */ }
+            }
+            catch { /* Headless or OS non-supported */ }
 
-                // Start memory polling task
-                var memoryMonitorTask = Task.Run(async () =>
+            // Start memory polling task
+            var memoryMonitorTask = Task.Run(async () =>
+            {
+                while (!cts.Token.IsCancellationRequested)
                 {
-                    while (!cts.Token.IsCancellationRequested)
-                    {
-                        long currentRamBytes = Process.GetCurrentProcess().WorkingSet64;
-                        double ramMb = currentRamBytes / (1024.0 * 1024.0);
-                        if (ramMb > peakRamMb) peakRamMb = ramMb;
+                    long currentRamBytes = Process.GetCurrentProcess().WorkingSet64;
+                    double ramMb = currentRamBytes / (1024.0 * 1024.0);
+                    if (ramMb > peakRamMb) peakRamMb = ramMb;
 
-                        if (vramCounters.Count > 0)
+                    if (vramCounters.Count > 0)
+                    {
+                        float currentVramBytes = 0;
+                        foreach (var c in vramCounters)
                         {
-                            float currentVramBytes = 0;
-                            foreach (var c in vramCounters)
-                            {
-                                try { currentVramBytes += c.NextValue(); } catch { }
-                            }
-                            double vramMb = currentVramBytes / (1024.0 * 1024.0);
-                            if (vramMb > peakVramMb) peakVramMb = vramMb;
+                            try { currentVramBytes += c.NextValue(); } catch { }
                         }
-
-                        await Task.Delay(50, cts.Token);
+                        double vramMb = currentVramBytes / (1024.0 * 1024.0);
+                        if (vramMb > peakVramMb) peakVramMb = vramMb;
                     }
-                });
 
-                // Measure initialization time
-                var loadSw = Stopwatch.StartNew();
-                bool initSuccess = await whisperService.InitializeAsync(modelPath, msg => Console.WriteLine(msg));
-                loadSw.Stop();
-
-                benchmarkResult.LoadTimeSec = loadSw.Elapsed.TotalSeconds;
-
-                if (!initSuccess)
-                {
-                    cts.Cancel();
-                    try { await memoryMonitorTask; } catch { }
-                    foreach (var c in vramCounters) c.Dispose();
-
-                    benchmarkResult.PassedCases = 0;
-                    benchmarkResult.TestCases.Add(new TestCaseResult
-                    {
-                        TestCaseName = "Audio Transcription Accuracy",
-                        InputText = "Audio File",
-                        OutputText = "INIT_FAILED",
-                        Passed = false,
-                        AssertionSummary = "Whisper model could not be initialized."
-                    });
-
-                    PerformanceReportGenerator.AddResult(benchmarkResult);
-                    continue;
+                    await Task.Delay(50, cts.Token);
                 }
+            });
 
-                var transSw = Stopwatch.StartNew();
-                List<string> transcribedSegments;
-                using (var audioStream = File.OpenRead(wavPath))
-                {
-                    transcribedSegments = await whisperService.TranscribeAsync(audioStream, null, onDebugMessage: msg => Console.WriteLine(msg));
-                }
-                transSw.Stop();
+            // Measure initialization time
+            var loadSw = Stopwatch.StartNew();
+            bool initSuccess = await whisperService.InitializeAsync(modelPath, msg => Console.WriteLine(msg));
+            loadSw.Stop();
 
-                double transDurationSec = transSw.Elapsed.TotalSeconds;
-                double rtf = transDurationSec / Math.Max(audioDurationSec, 0.01);
+            benchmarkResult.LoadTimeSec = loadSw.Elapsed.TotalSeconds;
 
-                var transcribedText = string.Join(" ", transcribedSegments).Trim();
-
-                // Compute correctness using Levenshtein distance
-                double similarity = ComputeLevenshteinSimilarity(transcribedText, expectedText);
-                bool passed = similarity >= 0.85; // Target 85% character accuracy benchmark
-
-                if (passed)
-                {
-                    benchmarkResult.PassedCases = 1;
-                }
-
-                benchmarkResult.TestCases.Add(new TestCaseResult
-                {
-                    TestCaseName = "Audio Transcription Accuracy",
-                    InputText = $"Audio Length: {audioDurationSec:F2}s",
-                    OutputText = transcribedText,
-                    DurationSec = transDurationSec,
-                    SpeedTpsOrRtf = rtf,
-                    Passed = passed,
-                    AssertionSummary = $"Similarity: {similarity * 100:F1}% (Expected >= 85%) | Ground Truth: \"{expectedText}\""
-                });
-
-                // Stop memory monitoring
+            if (!initSuccess)
+            {
                 cts.Cancel();
                 try { await memoryMonitorTask; } catch { }
                 foreach (var c in vramCounters) c.Dispose();
 
-                benchmarkResult.AvgDurationSec = transDurationSec;
-                benchmarkResult.AvgSpeedTpsOrRtf = rtf;
-                benchmarkResult.PeakRamMb = peakRamMb;
-                benchmarkResult.PeakVramMb = peakVramMb;
+                benchmarkResult.PassedCases = 0;
+                benchmarkResult.TestCases.Add(new TestCaseResult
+                {
+                    TestCaseName = "Audio Transcription Accuracy",
+                    InputText = "Audio File",
+                    OutputText = "INIT_FAILED",
+                    Passed = false,
+                    AssertionSummary = "Whisper model could not be initialized."
+                });
 
-                // Add result & trigger report update
                 PerformanceReportGenerator.AddResult(benchmarkResult);
-
-                // Clean up resources explicitly
-                await whisperService.DisposeResourcesAsync(msg => Console.WriteLine(msg));
+                return;
             }
+
+            var transSw = Stopwatch.StartNew();
+            List<string> transcribedSegments;
+            using (var audioStream = File.OpenRead(wavPath))
+            {
+                transcribedSegments = await whisperService.TranscribeAsync(audioStream, null, onDebugMessage: msg => Console.WriteLine(msg));
+            }
+            transSw.Stop();
+
+            double transDurationSec = transSw.Elapsed.TotalSeconds;
+            double rtf = transDurationSec / Math.Max(audioDurationSec, 0.01);
+
+            var transcribedText = string.Join(" ", transcribedSegments).Trim();
+
+            // Compute correctness using Levenshtein distance
+            double similarity = ComputeLevenshteinSimilarity(transcribedText, expectedText);
+            bool passed = similarity >= 0.85; // Target 85% character accuracy benchmark
+
+            if (passed)
+            {
+                benchmarkResult.PassedCases = 1;
+            }
+
+            benchmarkResult.TestCases.Add(new TestCaseResult
+            {
+                TestCaseName = "Audio Transcription Accuracy",
+                InputText = $"Audio Length: {audioDurationSec:F2}s",
+                OutputText = transcribedText,
+                DurationSec = transDurationSec,
+                SpeedTpsOrRtf = rtf,
+                Passed = passed,
+                AssertionSummary = $"Similarity: {similarity * 100:F1}% (Expected >= 85%) | Ground Truth: \"{expectedText}\""
+            });
+
+            // Stop memory monitoring
+            cts.Cancel();
+            try { await memoryMonitorTask; } catch { }
+            foreach (var c in vramCounters) c.Dispose();
+
+            benchmarkResult.AvgDurationSec = transDurationSec;
+            benchmarkResult.AvgSpeedTpsOrRtf = rtf;
+            benchmarkResult.PeakRamMb = peakRamMb;
+            benchmarkResult.PeakVramMb = peakVramMb;
+
+            // Add result & trigger report update
+            PerformanceReportGenerator.AddResult(benchmarkResult);
+
+            // Clean up resources explicitly
+            await whisperService.DisposeResourcesAsync(msg => Console.WriteLine(msg));
         }
 
         private static double ComputeLevenshteinSimilarity(string s, string t)

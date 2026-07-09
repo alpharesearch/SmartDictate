@@ -9,7 +9,7 @@ SmartDictate Quality Assurance / Core Performance.
 ## Local Contracts
 - **Framework**: xUnit is the testing framework.
 - **Platform Target**: Must target `net9.0-windows` and platform `x64` to load native backends for Whisper.net and LLamaSharp.
-- **Skipping Protocol**: Performance tests require real GGUF and GGML files to be present on disk, which are large and resource-intensive. Tests use the custom `[PerformanceFact]` attribute to dynamically skip execution unless the environment variable `RUN_LLM_PERF=true` is set.
+- **Skipping Protocol**: Performance tests require real GGUF and GGML files to be present on disk, which are large and resource-intensive. Tests use the custom `[PerformanceFact]` attribute to dynamically skip execution unless the environment variable `RUN_LLM_PERF=true` is set OR an empty file named `.run_perf` is created in the solution root or `models/` folder.
 - **Model Storage**: Tests look for models inside `models/llm/` and `models/whisper/` folders, with a fallback to the root `models/` directory.
 - **Metrics Outputs**: Results from each run are compiled dynamically into `llm_performance_report.md` at the solution root folder.
 
@@ -18,12 +18,14 @@ SmartDictate Quality Assurance / Core Performance.
 - The Whisper test requires `whisper_benchmark.wav` and `whisper_benchmark.txt` in the `models/whisper/` (or `models/`) folder.
 
 ## Verification
-- To execute the performance tests, set the environment variable and run:
+- To execute the performance tests via CLI, set the environment variable and run:
   ```powershell
   $env:RUN_LLM_PERF="true"
   dotnet test --filter Category=Performance
   ```
+- Alternatively, when running tests from an IDE (like VS Code, Visual Studio, or Antigravity IDE) where setting environment variables is less convenient, create an empty `.run_perf` file in the solution root or `models/` directory, and run the tests from your IDE's Test Explorer.
 - Verify that `llm_performance_report.md` is updated at the repository root.
+
 
 ## Child DOX Index
 This directory has no nested subdirectories with a DOX contract.

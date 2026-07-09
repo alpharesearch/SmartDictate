@@ -1,15 +1,16 @@
 using System;
+using System.IO;
 using Xunit;
 
 namespace SmartDictateAI.PerformanceTests
 {
     /// <summary>
-    /// A custom xUnit Fact attribute that dynamically skips tests unless the 
-    /// RUN_LLM_PERF environment variable is set to "true".
+    /// A custom xUnit Theory attribute that dynamically skips tests unless the 
+    /// RUN_LLM_PERF environment variable is set to "true" or a ".run_perf" file exists.
     /// </summary>
-    public class PerformanceFactAttribute : FactAttribute
+    public class PerformanceTheoryAttribute : TheoryAttribute
     {
-        public PerformanceFactAttribute()
+        public PerformanceTheoryAttribute()
         {
             var runPerfEnv = Environment.GetEnvironmentVariable("RUN_LLM_PERF");
             bool run = !string.IsNullOrEmpty(runPerfEnv) && runPerfEnv.Equals("true", StringComparison.OrdinalIgnoreCase);
@@ -40,6 +41,5 @@ namespace SmartDictateAI.PerformanceTests
                 Skip = "Skipped: Set RUN_LLM_PERF=true env var or create an empty '.run_perf' file in the solution root or models/ folder to run.";
             }
         }
-
     }
 }
