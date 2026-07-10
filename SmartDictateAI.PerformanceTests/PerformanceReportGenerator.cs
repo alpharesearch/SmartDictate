@@ -225,8 +225,8 @@ namespace SmartDictateAI.PerformanceTests
                     sb.AppendLine();
                 }
 
-                sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Total Time | Speed (RTF) | Peak RAM | Peak VRAM | Accuracy |");
-                sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
+                sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Total Time | Speed (RTF) | Peak RAM | Peak VRAM | WER | Accuracy |");
+                sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
 
                 for (int i = 0; i < rankedWhisper.Count; i++)
                 {
@@ -237,8 +237,9 @@ namespace SmartDictateAI.PerformanceTests
                     var ramStr = r.PeakRamMb > 0 ? $"{r.PeakRamMb:F0} MB" : "N/A";
                     var vramStr = r.PeakVramMb > 0 ? $"{r.PeakVramMb:F0} MB" : "N/A";
                     var totalTime = r.LoadTimeSec + r.TestCases.Sum(tc => tc.DurationSec);
+                    var werPercentStr = $"{(1.0 - r.AccuracyScore) * 100:F1}%";
 
-                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {totalTime:F2}s | {speedStr} | {ramStr} | {vramStr} | {r.AccuracyScore * 100:F1}% |");
+                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {totalTime:F2}s | {speedStr} | {ramStr} | {vramStr} | {werPercentStr} | {r.AccuracyScore * 100:F1}% |");
                 }
                 sb.AppendLine();
 
