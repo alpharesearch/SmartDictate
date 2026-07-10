@@ -11,6 +11,7 @@ namespace SmartDictateAI.PerformanceTests
         public string ModelName { get; set; } = "";
         public string ModelType { get; set; } = ""; // "LLM" or "Whisper"
         public double FileSizeGb { get; set; }
+        public double? Temperature { get; set; }
         public double LoadTimeSec { get; set; }
         public double AvgDurationSec { get; set; }
         public double AvgSpeedTpsOrRtf { get; set; } // Tokens/sec for LLM, Real-time factor (RTF) for Whisper
@@ -42,8 +43,8 @@ namespace SmartDictateAI.PerformanceTests
         {
             lock (_lock)
             {
-                // Remove previous runs of the same model to avoid duplicates if rerun
-                _results.RemoveAll(r => r.ModelName.Equals(result.ModelName, StringComparison.OrdinalIgnoreCase));
+                // Remove previous runs of the same model and temperature to avoid duplicates if rerun
+                _results.RemoveAll(r => r.ModelName.Equals(result.ModelName, StringComparison.OrdinalIgnoreCase) && r.Temperature == result.Temperature);
                 _results.Add(result);
                 
                 // Write report incrementally so it updates during the test run
@@ -177,8 +178,8 @@ namespace SmartDictateAI.PerformanceTests
                 sb.AppendLine();
                 sb.AppendLine("Models are ranked based on a composite rating: **85% Correctness + 15% Generation Speed (TPS)**.");
                 sb.AppendLine();
-                sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Avg Speed | Peak RAM | Peak VRAM | Correctness |");
-                sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+                sb.AppendLine("| Rank | Model Name | Temp | Score | Grade | Size | Load Time | Total Time | Avg Speed | Peak RAM | Peak VRAM | Correctness |");
+                sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
 
                 for (int i = 0; i < rankedLlm.Count; i++)
                 {
@@ -188,8 +189,10 @@ namespace SmartDictateAI.PerformanceTests
                     var speedStr = $"{r.AvgSpeedTpsOrRtf:F1} tok/s";
                     var ramStr = r.PeakRamMb > 0 ? $"{r.PeakRamMb:F0} MB" : "N/A";
                     var vramStr = r.PeakVramMb > 0 ? $"{r.PeakVramMb:F0} MB" : "N/A";
+                    var totalTime = r.LoadTimeSec + r.TestCases.Sum(tc => tc.DurationSec);
+                    var tempStr = r.Temperature.HasValue ? r.Temperature.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "N/A";
 
-                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {speedStr} | {ramStr} | {vramStr} | {r.PassedCases}/{r.TotalCases} ({r.AccuracyScore * 100:F0}%) |");
+                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | {tempStr} | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {totalTime:F2}s | {speedStr} | {ramStr} | {vramStr} | {r.PassedCases}/{r.TotalCases} ({r.AccuracyScore * 100:F0}%) |");
                 }
                 sb.AppendLine();
 
@@ -198,8 +201,8 @@ namespace SmartDictateAI.PerformanceTests
                 sb.AppendLine();
                 sb.AppendLine("Models are ranked based on a composite rating: **85% Transcription Similarity + 15% Real-Time Factor (RTF)**.");
                 sb.AppendLine();
-                sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Speed (RTF) | Peak RAM | Peak VRAM | Accuracy |");
-                sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+                sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Total Time | Speed (RTF) | Peak RAM | Peak VRAM | Accuracy |");
+                sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
 
                 for (int i = 0; i < rankedWhisper.Count; i++)
                 {
@@ -209,8 +212,9 @@ namespace SmartDictateAI.PerformanceTests
                     var speedStr = $"{r.AvgSpeedTpsOrRtf:F4}x RTF (lower is better)";
                     var ramStr = r.PeakRamMb > 0 ? $"{r.PeakRamMb:F0} MB" : "N/A";
                     var vramStr = r.PeakVramMb > 0 ? $"{r.PeakVramMb:F0} MB" : "N/A";
+                    var totalTime = r.LoadTimeSec + r.TestCases.Sum(tc => tc.DurationSec);
 
-                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {speedStr} | {ramStr} | {vramStr} | {r.AccuracyScore * 100:F1}% |");
+                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {totalTime:F2}s | {speedStr} | {ramStr} | {vramStr} | {r.AccuracyScore * 100:F1}% |");
                 }
                 sb.AppendLine();
 
@@ -222,7 +226,8 @@ namespace SmartDictateAI.PerformanceTests
                 foreach (var item in rankedLlm)
                 {
                     var r = item.Result;
-                    sb.AppendLine($"### [LLM Rank {rankedLlm.IndexOf(item) + 1}] {r.ModelName} (Score: {item.Score:F1}/100 - Grade {GetLetterGrade(item.Score)})");
+                    var tempSuffix = r.Temperature.HasValue ? $" (temp: {r.Temperature.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)})" : "";
+                    sb.AppendLine($"### [LLM Rank {rankedLlm.IndexOf(item) + 1}] {r.ModelName}{tempSuffix} (Score: {item.Score:F1}/100 - Grade {GetLetterGrade(item.Score)})");
                     sb.AppendLine();
                     sb.AppendLine($"- **File Size:** {r.FileSizeGb:F2} GB");
                     sb.AppendLine($"- **Load Time:** {r.LoadTimeSec:F2} seconds");

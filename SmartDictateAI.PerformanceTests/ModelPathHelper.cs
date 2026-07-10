@@ -52,15 +52,9 @@ namespace SmartDictateAI.PerformanceTests
         /// </summary>
         public static string GetAssetPath(string fileName)
         {
-            // 1. Check output directory
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var localAsset = Path.Combine(baseDir, "Assets", fileName);
-            if (File.Exists(localAsset))
-            {
-                return localAsset;
-            }
 
-            // 2. Check source project folder by walking up to solution root
+            // 1. Check source project folder by walking up to solution root (development mode)
             var dir = new DirectoryInfo(baseDir);
             while (dir != null)
             {
@@ -72,7 +66,14 @@ namespace SmartDictateAI.PerformanceTests
                 dir = dir.Parent;
             }
 
-            throw new FileNotFoundException($"Could not find asset '{fileName}' in build output or source folders.");
+            // 2. Check output directory (fallback for published/standalone execution)
+            var localAsset = Path.Combine(baseDir, "Assets", fileName);
+            if (File.Exists(localAsset))
+            {
+                return localAsset;
+            }
+
+            throw new FileNotFoundException($"Could not find asset '{fileName}' in source folders or build output.");
         }
     }
 }

@@ -243,6 +243,11 @@ namespace SmartDictateAI.PerformanceTests
 
             // Clean up resources explicitly
             await whisperService.DisposeResourcesAsync(msg => Console.WriteLine(msg));
+
+            // Force Garbage Collection and wait for cooldown to let GPU driver free VRAM
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await Task.Delay(1500);
         }
 
         private static double ComputeLevenshteinSimilarity(string s, string t)
