@@ -1,9 +1,9 @@
-﻿# SmartDictate
+# SmartDictate
 
 ## Getting Started
 
 1. **Open in Visual Studio 2022:**  
-   Open the `ConsoleApp1.sln` solution file.
+   Open the `SmartDictate.sln` solution file.
 
 2. **Restore NuGet packages:**  
    Visual Studio will prompt you to restore packages on first open.
@@ -13,9 +13,11 @@
 
 ## Key Features
 
-- **Consolidated Tabbed Settings Panel**: Access all core and advanced settings (Whisper models, LLM parameters, audio input devices, custom hotkeys, VAD mode, chunking thresholds, and custom prompt profiles) in a single tabbed dialog.
+- **Consolidated Tabbed Settings Panel**: Access all core and advanced settings (Whisper models, LLM parameters, audio input devices, custom hotkeys, VAD mode, chunking thresholds, prompt profiles, custom vocabulary prompts, and deterministic replacements list) in a single tabbed dialog.
 - **Multi-State Visual Pipeline Indicator**: View real-time visual status updates (Idle, Listening/Silent, Speech Detected, Processing) through the active color-coded status bar (`lblStatusIndicator`).
 - **Interactive Clipboard Rerun (`Rerun LLM` button)**: Dynamically checks for available clipboard text history and enables quick LLM-refinement on-demand.
+- **Deterministic Post-Processing & Vocabulary Replacements**: Automatically map phonetic or misrecognized terms to exact preferred names (e.g. correcting "smart server" to "Sm@rtServer" or "site top" to "SITOP") using a configurable case-insensitive search-and-replace list.
+- **Custom Vocabulary Prompts**: Control whether vocabulary-preservation or sounds-like instructions are dynamically injected into the LLM system prompt via simple checkboxes.
 - **Integrated Download Shortcuts**: Directly click built-in link labels in the **Models** tab of the settings menu to download recommended high-performance local models.
 - **Global Dictation Mode (`CTRL + ALT + D`):** Dictate directly into any active windows application. The app types out your transcribed text right at your cursor.
 - **Clipboard Proofreading (`CTRL + ALT + P`):** Instantly refines your currently copied clipboard text using the local LLM to correct grammar, spelling, and punctuation, then auto-pastes it back.
@@ -48,7 +50,7 @@ You must download and provide your own Whisper and LLM models:
   The app automatically supports and formats prompts for **Qwen**, **Llama**, and **Gemma** models. Examples:
   - **Qwen 2 (0.5B):** Download [qwen2-0_5b-instruct-q8_0.gguf](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF/resolve/main/Qwen2-0.5B-Instruct-Q8_0.gguf?download=true) from [bartowski/Qwen2-0.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF)
   - **Llama 3.2 (3B):** Download [Llama-3.2-3B-Instruct-Q8_0.gguf](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf?download=true) from [hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF)
-  - **Gemma 4 (E2B):** Download [gemma-4-E2B-it-Q4_0.gguf](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf?download=true) from [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)
+  - **Gemma 4 (E4B) (Benchmark Winner):** Download [gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf?download=true) from [unsloth/gemma-4-E4B-it-qat-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF) — *Winner in our local benchmark testing for correctness, Siemens vocabulary preservation, and generation speed.*
 
 ## Advanced Configuration (`appsettings.json`)
 
@@ -73,6 +75,11 @@ Valid modifiers include `Control`, `Alt`, `Shift`, or combinations separated by 
 ### Audio & VAD Tweaks
 - **VadGainMultiplier**: Boosts the microphone volume *only* for the Voice Activity Detection analysis (Default: `1.0`). Useful if your microphone is too quiet to trigger the VAD.
 - **Silence Thresholds**: Adjust `NormalSilenceThresholdSeconds` and `DictationSilenceThresholdSeconds` to control how long you can pause before the app considers a sentence finished.
+
+### Deterministic Replacements and Vocabulary Prompts
+- **EnableVocabPrompt1 / EnableVocabPrompt2**: Checkboxes to toggle whether vocabulary-preservation and sounds-like instructions are injected into the system prompt.
+- **VocabPrompt1Text / VocabPrompt2Text**: Editable system prompt templates containing placeholders for custom vocabulary.
+- **VocabularyReplacements**: A list of search-and-replace pairs applied as a deterministic post-processing pass directly to the LLM refined text.
 
 ## Project Structure
 

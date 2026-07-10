@@ -504,7 +504,7 @@ namespace SmartDictateAI
                 {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                    FileName = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf?download=true",
+                    FileName = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf?download=true",
                     UseShellExecute = true
                     });
                 }
