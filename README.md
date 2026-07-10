@@ -50,7 +50,7 @@ You must download and provide your own Whisper and LLM models:
   The app automatically supports and formats prompts for **Qwen**, **Llama**, and **Gemma** models. Examples:
   - **Qwen 2 (0.5B):** Download [qwen2-0_5b-instruct-q8_0.gguf](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF/resolve/main/Qwen2-0.5B-Instruct-Q8_0.gguf?download=true) from [bartowski/Qwen2-0.5B-Instruct-GGUF](https://huggingface.co/bartowski/Qwen2-0.5B-Instruct-GGUF)
   - **Llama 3.2 (3B):** Download [Llama-3.2-3B-Instruct-Q8_0.gguf](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf?download=true) from [hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF](https://huggingface.co/hugging-quants/Llama-3.2-3B-Instruct-Q8_0-GGUF)
-  - **Gemma 4 (E4B) (Benchmark Winner):** Download [gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf?download=true) from [unsloth/gemma-4-E4B-it-qat-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF) — *Winner in our local benchmark testing for correctness, Siemens vocabulary preservation, and generation speed.*
+  - **Gemma 4 (E4B) (Benchmark Winner):** Download [gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/resolve/main/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf?download=true) from [unsloth/gemma-4-E4B-it-qat-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF) — *Winner in our local benchmark testing for correctness, Siemens vocabulary preservation, and generation speed.*
 
 ## Advanced Configuration (`appsettings.json`)
 
