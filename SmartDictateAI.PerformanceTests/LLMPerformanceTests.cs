@@ -327,13 +327,10 @@ namespace SmartDictateAI.PerformanceTests
             {
                 var fileSizeGb = new FileInfo(modelPath).Length / (1024.0 * 1024.0 * 1024.0);
 
-                int totalSentences = 0;
+                int totalChecks = 0;
                 foreach (var tc in TestCases)
                 {
-                    var expectedSentences = tc.ExpectedOutput.Split(new[] { ". ", "? ", "! ", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(s => s.Trim())
-                        .Where(s => s.Length > 0);
-                    totalSentences += expectedSentences.Count();
+                    totalChecks += tc.ExpectedSubstrings.Length + tc.ForbiddenSubstrings.Length;
                 }
 
                 var benchmarkResult = new ModelBenchmarkResult
@@ -342,7 +339,7 @@ namespace SmartDictateAI.PerformanceTests
                     Temperature = temperature,
                     ModelType = "LLM",
                     FileSizeGb = fileSizeGb,
-                    TotalCases = totalSentences
+                    TotalCases = totalChecks
                 };
 
                 // Setup AppSettings specifically for this model benchmark
@@ -480,39 +477,47 @@ namespace SmartDictateAI.PerformanceTests
                     }
                     totalSpeedTps += currentTps;
 
-                    // Normalize the refined output (strip punctuation, collapse whitespace) for substring checking
+                    // Normalize the refined output
                     var normalizedOutput = NormalizeText(refinedOutput);
 
-                    // Split ExpectedOutput into sentences
-                    var expectedSentences = testCase.ExpectedOutput.Split(new[] { ". ", "? ", "! ", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(s => s.Trim())
-                        .Where(s => s.Length > 0)
-                        .ToList();
+                    // Replace the expectedSentences logic with substring validation
+                    int passedChecks = 0;
+                    int caseTotalChecks = testCase.ExpectedSubstrings.Length + testCase.ForbiddenSubstrings.Length;
+                    var failedChecks = new List<string>();
 
-                    int passedSentences = 0;
-                    var failedSentences = new List<string>();
-
-                    foreach (var sentence in expectedSentences)
+                    foreach (var expected in testCase.ExpectedSubstrings)
                     {
-                        var normalizedSentence = NormalizeText(sentence);
-                        if (normalizedSentence.Length > 0 && normalizedOutput.Contains(normalizedSentence, StringComparison.Ordinal))
+                        var normalizedExpected = NormalizeText(expected);
+                        if (normalizedOutput.Contains(normalizedExpected, StringComparison.Ordinal))
                         {
-                            passedSentences++;
+                            passedChecks++;
                         }
                         else
                         {
-                            failedSentences.Add(sentence);
+                            failedChecks.Add($"Missing: '{expected}'");
                         }
                     }
 
-                    bool passed = failedSentences.Count == 0;
-                    benchmarkResult.PassedCases += passedSentences;
+                    foreach (var forbidden in testCase.ForbiddenSubstrings)
+                    {
+                        if (!refinedOutput.Contains(forbidden, StringComparison.Ordinal))
+                        {
+                            passedChecks++;
+                        }
+                        else
+                        {
+                            failedChecks.Add($"Found Forbidden: '{forbidden}'");
+                        }
+                    }
+
+                    bool passed = (caseTotalChecks > 0 && failedChecks.Count == 0);
+                    benchmarkResult.PassedCases += passedChecks;
 
                     var notes = new List<string>();
-                    notes.Add($"Sentences: {passedSentences}/{expectedSentences.Count} passed");
-                    if (failedSentences.Count > 0)
+                    notes.Add($"Checks: {passedChecks}/{caseTotalChecks} passed");
+                    if (failedChecks.Count > 0)
                     {
-                        notes.Add($"Failed: {string.Join(" | ", failedSentences.Select(s => $"\"{s}\""))}");
+                        notes.Add($"Failed: {string.Join(" | ", failedChecks)}");
                     }
                     else
                     {

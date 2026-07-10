@@ -201,6 +201,30 @@ namespace SmartDictateAI.PerformanceTests
                 sb.AppendLine();
                 sb.AppendLine("Models are ranked based on a composite rating: **85% Transcription Similarity + 15% Real-Time Factor (RTF)**.");
                 sb.AppendLine();
+
+                // Extract ground truth from the first Whisper result to print it once at the top of the Whisper section
+                string globalGroundTruth = "";
+                var firstWhisperWithGt = whisperResults.FirstOrDefault(r => r.TestCases.Any(tc => (tc.AssertionSummary ?? "").Contains("Ground Truth: \"")));
+                if (firstWhisperWithGt != null)
+                {
+                    var firstTc = firstWhisperWithGt.TestCases.First(tc => (tc.AssertionSummary ?? "").Contains("Ground Truth: \""));
+                    string assertionSummary = firstTc.AssertionSummary ?? "";
+                    int startIdx = assertionSummary.IndexOf("Ground Truth: \"") + 15;
+                    int endIdx = assertionSummary.LastIndexOf("\"");
+                    if (endIdx > startIdx && startIdx >= 15)
+                    {
+                        globalGroundTruth = assertionSummary.Substring(startIdx, endIdx - startIdx);
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(globalGroundTruth))
+                {
+                    sb.AppendLine("#### Whisper Ground Truth Reference");
+                    sb.AppendLine();
+                    sb.AppendLine($"> {globalGroundTruth}");
+                    sb.AppendLine();
+                }
+
                 sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Total Time | Speed (RTF) | Peak RAM | Peak VRAM | Accuracy |");
                 sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
 
@@ -274,7 +298,13 @@ namespace SmartDictateAI.PerformanceTests
                         var speedStr = $"{tc.SpeedTpsOrRtf:F4}x RTF";
                         var safeInput = tc.InputText.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();
                         var safeOutput = tc.OutputText.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();
-                        var safeNotes = tc.AssertionSummary.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();
+                        var rawNotes = tc.AssertionSummary ?? "";
+                        if (rawNotes.Contains(" | Ground Truth: \""))
+                        {
+                            int gtIdx = rawNotes.IndexOf(" | Ground Truth: \"");
+                            rawNotes = rawNotes.Substring(0, gtIdx);
+                        }
+                        var safeNotes = rawNotes.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();
 
                         sb.AppendLine("| Test Case | Input | Output Summary | Speed | Status | Notes |");
                         sb.AppendLine("|---|---|---|---|---|---|");
@@ -285,7 +315,7 @@ namespace SmartDictateAI.PerformanceTests
                         durationSec = tc.DurationSec;
                         rtf = tc.SpeedTpsOrRtf;
                         passed = tc.Passed;
-                        assertionSummary = tc.AssertionSummary;
+                        assertionSummary = tc.AssertionSummary ?? "";
                     }
 
                     // Extract ground truth from the assertionSummary if possible
