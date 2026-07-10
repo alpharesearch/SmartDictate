@@ -11,7 +11,7 @@ using NAudio.Wave;
 
 namespace SmartDictateAI.PerformanceTests
 {
-    public class WhisperPerformanceTests
+    public partial class ModelPerformanceTests
     {
         public static IEnumerable<object[]> GetWhisperModels()
         {
@@ -47,7 +47,8 @@ namespace SmartDictateAI.PerformanceTests
         [Theory]
         [MemberData(nameof(GetWhisperModels))]
         [Trait("Category", "Performance")]
-        public async Task Benchmark_Whisper_Model(string modelName, string modelPath)
+        public async Task Benchmark_Stage1_Whisper_Model(string modelName, string modelPath)
+
         {
             // Runtime skip check
             if (!PerformanceTestHelper.ShouldRun())

@@ -55,10 +55,10 @@ namespace SmartDictateAI.PerformanceTests
         {
             if (res.LoadTimeSec == 0 || res.AvgSpeedTpsOrRtf == 0) return 0;
             
-            // 70% weight on correctness
-            double correctnessPart = res.AccuracyScore * 70.0;
-            // 30% weight on inference speed (relative to highest TPS in the run)
-            double speedPart = (res.AvgSpeedTpsOrRtf / maxTps) * 30.0;
+            // 85% weight on correctness
+            double correctnessPart = res.AccuracyScore * 85.0;
+            // 15% weight on inference speed (relative to highest TPS in the run)
+            double speedPart = (res.AvgSpeedTpsOrRtf / maxTps) * 15.0;
             
             return Math.Round(correctnessPart + speedPart, 1);
         }
@@ -67,10 +67,10 @@ namespace SmartDictateAI.PerformanceTests
         {
             if (res.LoadTimeSec == 0 || res.AvgSpeedTpsOrRtf == 0) return 0;
             
-            // 70% weight on transcription similarity
-            double correctnessPart = res.AccuracyScore * 70.0;
-            // 30% weight on speed (Relative RTF where lower RTF gets more points)
-            double speedPart = (minRtf / Math.Max(0.001, res.AvgSpeedTpsOrRtf)) * 30.0;
+            // 85% weight on transcription similarity
+            double correctnessPart = res.AccuracyScore * 85.0;
+            // 15% weight on speed (Relative RTF where lower RTF gets more points)
+            double speedPart = (minRtf / Math.Max(0.0001, res.AvgSpeedTpsOrRtf)) * 15.0;
             
             return Math.Round(correctnessPart + speedPart, 1);
         }
@@ -175,7 +175,7 @@ namespace SmartDictateAI.PerformanceTests
                 // LLM Table
                 sb.AppendLine("## LLM Models Performance Summary (Ranked)");
                 sb.AppendLine();
-                sb.AppendLine("Models are ranked based on a composite rating: **70% Correctness + 30% Generation Speed (TPS)**.");
+                sb.AppendLine("Models are ranked based on a composite rating: **85% Correctness + 15% Generation Speed (TPS)**.");
                 sb.AppendLine();
                 sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Avg Speed | Peak RAM | Peak VRAM | Correctness |");
                 sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
@@ -196,7 +196,7 @@ namespace SmartDictateAI.PerformanceTests
                 // Whisper Table
                 sb.AppendLine("## Whisper Models Performance Summary (Ranked)");
                 sb.AppendLine();
-                sb.AppendLine("Models are ranked based on a composite rating: **70% Transcription Similarity + 30% Real-Time Factor (RTF)**.");
+                sb.AppendLine("Models are ranked based on a composite rating: **85% Transcription Similarity + 15% Real-Time Factor (RTF)**.");
                 sb.AppendLine();
                 sb.AppendLine("| Rank | Model Name | Score | Grade | Size | Load Time | Speed (RTF) | Peak RAM | Peak VRAM | Accuracy |");
                 sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
@@ -206,7 +206,7 @@ namespace SmartDictateAI.PerformanceTests
                     var r = rankedWhisper[i].Result;
                     var score = rankedWhisper[i].Score;
                     var grade = GetLetterGrade(score);
-                    var speedStr = $"{r.AvgSpeedTpsOrRtf:F2}x RTF (lower is better)";
+                    var speedStr = $"{r.AvgSpeedTpsOrRtf:F4}x RTF (lower is better)";
                     var ramStr = r.PeakRamMb > 0 ? $"{r.PeakRamMb:F0} MB" : "N/A";
                     var vramStr = r.PeakVramMb > 0 ? $"{r.PeakVramMb:F0} MB" : "N/A";
 
@@ -266,7 +266,7 @@ namespace SmartDictateAI.PerformanceTests
                     foreach (var tc in r.TestCases)
                     {
                         var status = tc.Passed ? "✅ Pass" : "❌ Fail";
-                        var speedStr = $"{tc.SpeedTpsOrRtf:F2}x RTF";
+                        var speedStr = $"{tc.SpeedTpsOrRtf:F4}x RTF";
                         var safeInput = tc.InputText.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();
                         var safeOutput = tc.OutputText.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();
                         var safeNotes = tc.AssertionSummary.Replace("\r", "").Replace("\n", " ").Replace("|", "\\|").Trim();

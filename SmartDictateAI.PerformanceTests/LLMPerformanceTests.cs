@@ -18,7 +18,7 @@ namespace SmartDictateAI.PerformanceTests
         public string[] ForbiddenSubstrings { get; set; } = Array.Empty<string>();
     }
 
-    public class LLMPerformanceTests
+    public partial class ModelPerformanceTests
     {
 
 
@@ -44,6 +44,55 @@ namespace SmartDictateAI.PerformanceTests
                 Input = "we configured the siemetic step 7 s7 1500 plc using tia portal",
                 ExpectedSubstrings = new[] { "SIMATIC", "STEP 7", "S7-1500", "TIA Portal" },
                 ForbiddenSubstrings = new[] { "siemetic", "step 7", "s7 1500", "tia portal" }
+            },
+            new TestPrompt
+            {
+                Name = "Advanced Custom Vocabulary Formatting",
+                Input = "the wincc unified project uses opc ua and profinet to talk to the s7 1200 and et 200sp modules",
+                ExpectedSubstrings = new[] { "WinCC Unified", "OPC UA", "PROFINET", "S7-1200", "ET 200SP" },
+                ForbiddenSubstrings = new[] { "wincc unified", "opc ua", "profinet", "s7 1200", "et 200sp" }
+            },
+            new TestPrompt
+            {
+                Name = "Homophone & Dictation Gotchas",
+                Input = "there dogs are barking over their because its a shame that the dog lost its collar",
+                ExpectedSubstrings = new[] { "eir dogs", "barking over there", "t's a shame", "lost its collar" },
+                ForbiddenSubstrings = new[] { "there dogs", "over their", "its a shame", "lost it's collar" }
+            },
+            new TestPrompt
+            {
+                Name = "Punctuation & Capitalization",
+                Input = "the project was delayed however we managed to finish it on time did you check the final build",
+                ExpectedSubstrings = new[] { "The project was delayed", "however,", "on time.", "Did you check", "final build?" },
+                ForbiddenSubstrings = new[] { "however we", "on time did", "the project" }
+            },
+            new TestPrompt
+            {
+                Name = "Numbers & Measurements",
+                Input = "the motor runs at three thousand two hundred rpm with a temperature of eighty five degrees celsius at twelve thirty pm",
+                ExpectedSubstrings = new[] { "200", "RPM", "85", "C", "12:30", "PM" },
+                ForbiddenSubstrings = new[] { "three thousand", "eighty five", "twelve thirty" }
+            },
+            new TestPrompt
+            {
+                Name = "Contractions & Pronoun Corrections",
+                Input = "we should of verified the logic and it would of saved us a lot of time",
+                ExpectedSubstrings = new[] { "should have verified", "would have saved" },
+                ForbiddenSubstrings = new[] { "should of", "would of" }
+            },
+            new TestPrompt
+            {
+                Name = "Double Words & Slurs",
+                Input = "we need to to update the the firmware as soon as possible",
+                ExpectedSubstrings = new[] { "need to update", "update the firmware" },
+                ForbiddenSubstrings = new[] { "to to", "the the" }
+            },
+            new TestPrompt
+            {
+                Name = "Professional Email Tone",
+                Input = "dear john i wanted to let you know that the plc code is ready let me know when you can jump on a call thanks mark",
+                ExpectedSubstrings = new[] { "Dear John,", "PLC", "PLC code", "on a call.", "Thanks, Mark" },
+                ForbiddenSubstrings = new[] { "dear john", "plc", "thanks mark" }
             }
         };
 
@@ -80,10 +129,26 @@ namespace SmartDictateAI.PerformanceTests
             };
         }
 
+        public static IEnumerable<object[]> GetLLMModelParameters()
+        {
+            var models = GetLLMModels();
+            var temperatures = new float[] { 0.0f, 0.7f };
+
+            foreach (var model in models)
+            {
+                var modelName = (string)model[0];
+                var modelPath = (string)model[1];
+                foreach (var temp in temperatures)
+                {
+                    yield return new object[] { modelName, modelPath, temp };
+                }
+            }
+        }
+
         [Theory]
-        [MemberData(nameof(GetLLMModels))]
+        [MemberData(nameof(GetLLMModelParameters))]
         [Trait("Category", "Performance")]
-        public async Task Benchmark_LLM_Model(string modelName, string modelPath)
+        public async Task Benchmark_Stage2_LLM_Model(string modelName, string modelPath, float temperature)
         {
             // Runtime skip check
             if (!PerformanceTestHelper.ShouldRun())
@@ -117,7 +182,7 @@ namespace SmartDictateAI.PerformanceTests
 
             var benchmarkResult = new ModelBenchmarkResult
             {
-                ModelName = modelName,
+                ModelName = $"{modelName} (temp: {temperature:F1})",
                 ModelType = "LLM",
                 FileSizeGb = fileSizeGb,
                 TotalCases = TestCases.Count
@@ -129,8 +194,8 @@ namespace SmartDictateAI.PerformanceTests
                 LocalLLMModelPath = modelPath,
                 LLMContextSize = 2048, // Use a conservative context size for benchmark compatibility
                 LLMSeed = 42,          // Fix the seed for deterministic outputs
-                LLMTemperature = 0.2f, // Lower temperature for more deterministic/stable generation
-                LLMMaxOutputTokens = 128,
+                LLMTemperature = temperature, // Set the temperature under test
+                LLMMaxOutputTokens = 2048,
                 UseGpu = true          // Attempt GPU usage
             };
 
