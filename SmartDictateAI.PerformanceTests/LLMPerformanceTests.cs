@@ -220,29 +220,49 @@ namespace SmartDictateAI.PerformanceTests
                 var dir = new DirectoryInfo(baseDir);
                 while (dir != null)
                 {
-                    var configPath = Path.Combine(dir.FullName, "benchmark_config.json");
-                    if (File.Exists(configPath))
-                    {
-                        var json = File.ReadAllText(configPath);
-                        BenchmarkConfig? config = System.Text.Json.JsonSerializer.Deserialize<BenchmarkConfig>(json);
-                        if (config != null && config.Temperatures != null && config.Temperatures.Length > 0)
-                        {
-                            return config.Temperatures;
-                        }
-                    }
+                    // Prioritize actual source folders to bypass stale cached output files
+                    var isBinOrObj = dir.FullName.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
+                                     dir.FullName.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
+                                     dir.Name == "bin" || dir.Name == "obj";
 
-                    var nestedConfigPath = Path.Combine(dir.FullName, "SmartDictateAI.PerformanceTests", "benchmark_config.json");
-                    if (File.Exists(nestedConfigPath))
+                    if (!isBinOrObj)
                     {
-                        var json = File.ReadAllText(nestedConfigPath);
-                        BenchmarkConfig? config = System.Text.Json.JsonSerializer.Deserialize<BenchmarkConfig>(json);
-                        if (config != null && config.Temperatures != null && config.Temperatures.Length > 0)
+                        var nestedConfigPath = Path.Combine(dir.FullName, "SmartDictateAI.PerformanceTests", "benchmark_config.json");
+                        if (File.Exists(nestedConfigPath))
                         {
-                            return config.Temperatures;
+                            var json = File.ReadAllText(nestedConfigPath);
+                            BenchmarkConfig? config = System.Text.Json.JsonSerializer.Deserialize<BenchmarkConfig>(json);
+                            if (config != null && config.Temperatures != null && config.Temperatures.Length > 0)
+                            {
+                                return config.Temperatures;
+                            }
+                        }
+
+                        var configPath = Path.Combine(dir.FullName, "benchmark_config.json");
+                        if (File.Exists(configPath))
+                        {
+                            var json = File.ReadAllText(configPath);
+                            BenchmarkConfig? config = System.Text.Json.JsonSerializer.Deserialize<BenchmarkConfig>(json);
+                            if (config != null && config.Temperatures != null && config.Temperatures.Length > 0)
+                            {
+                                return config.Temperatures;
+                            }
                         }
                     }
 
                     dir = dir.Parent;
+                }
+
+                // 2.5 Fallback to local execution directory copy
+                var localConfig = Path.Combine(baseDir, "benchmark_config.json");
+                if (File.Exists(localConfig))
+                {
+                    var json = File.ReadAllText(localConfig);
+                    BenchmarkConfig? config = System.Text.Json.JsonSerializer.Deserialize<BenchmarkConfig>(json);
+                    if (config != null && config.Temperatures != null && config.Temperatures.Length > 0)
+                    {
+                        return config.Temperatures;
+                    }
                 }
             }
             catch (Exception ex)
