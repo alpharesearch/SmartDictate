@@ -259,17 +259,27 @@ namespace SmartDictateAI.PerformanceTests
             public float[] Temperatures { get; set; } = Array.Empty<float>();
         }
 
-        [Theory]
-        [MemberData(nameof(GetLLMModels))]
+        [Fact]
         [Trait("Category", "Performance")]
-        public async Task Benchmark_Stage2_LLM_Model(string modelName, string modelPath)
+        public async Task Benchmark_Stage2_LLM_Models()
         {
-            // Runtime skip check
             if (!PerformanceTestHelper.ShouldRun())
             {
-                Console.WriteLine($"Bypassing LLM benchmark for {modelName} (performance runs are not enabled).");
+                Console.WriteLine("Bypassing LLM benchmarks (performance runs are not enabled).");
                 return;
             }
+
+            var models = GetLLMModels().ToList();
+            foreach (var model in models)
+            {
+                var modelName = (string)model[0];
+                var modelPath = (string)model[1];
+                await RunSingleLLMModelBenchmark(modelName, modelPath);
+            }
+        }
+
+        private async Task RunSingleLLMModelBenchmark(string modelName, string modelPath)
+        {
 
             // Resolve path if using the fallback model list
             if (string.IsNullOrEmpty(modelPath))

@@ -44,19 +44,27 @@ namespace SmartDictateAI.PerformanceTests
             };
         }
 
-        [Theory]
-        [MemberData(nameof(GetWhisperModels))]
+        [Fact]
         [Trait("Category", "Performance")]
-        public async Task Benchmark_Stage1_Whisper_Model(string modelName, string modelPath)
-
+        public async Task Benchmark_Stage1_Whisper_Models()
         {
-            // Runtime skip check
             if (!PerformanceTestHelper.ShouldRun())
             {
-                Console.WriteLine($"Bypassing Whisper benchmark for {modelName} (performance runs are not enabled).");
+                Console.WriteLine("Bypassing Whisper benchmarks (performance runs are not enabled).");
                 return;
             }
 
+            var models = GetWhisperModels().ToList();
+            foreach (var model in models)
+            {
+                var modelName = (string)model[0];
+                var modelPath = (string)model[1];
+                await RunSingleWhisperModelBenchmark(modelName, modelPath);
+            }
+        }
+
+        private async Task RunSingleWhisperModelBenchmark(string modelName, string modelPath)
+        {
             string wavPath;
             string txtPath;
             try
