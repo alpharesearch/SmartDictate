@@ -31,6 +31,22 @@ namespace SmartDictateAI
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsForm));
             tabSettings = new TabControl();
             tabModels = new TabPage();
+            tabVocabReplacements = new TabPage();
+            grpLLMVocabPrompts = new GroupBox();
+            chkEnableVocabPrompt1 = new CheckBox();
+            chkEnableVocabPrompt2 = new CheckBox();
+            txtVocabPrompt1 = new TextBox();
+            txtVocabPrompt2 = new TextBox();
+            grpDeterministicReplacements = new GroupBox();
+            lstReplacements = new ListView();
+            colTarget = new ColumnHeader();
+            colReplacement = new ColumnHeader();
+            lblRepTarget = new Label();
+            txtRepTarget = new TextBox();
+            lblRepReplacement = new Label();
+            txtRepReplacement = new TextBox();
+            btnRepAdd = new Button();
+            btnRepDelete = new Button();
             llLLM = new LinkLabel();
             llWhisper = new LinkLabel();
             chkUseGpu = new CheckBox();
@@ -99,6 +115,9 @@ namespace SmartDictateAI
             tabSettings.SuspendLayout();
             tabModels.SuspendLayout();
             grpLlmAdvanced.SuspendLayout();
+            tabVocabReplacements.SuspendLayout();
+            grpLLMVocabPrompts.SuspendLayout();
+            grpDeterministicReplacements.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)numLlmContextSize).BeginInit();
             ((System.ComponentModel.ISupportInitialize)numLlmSeed).BeginInit();
             ((System.ComponentModel.ISupportInitialize)numLlmTemperature).BeginInit();
@@ -124,6 +143,7 @@ namespace SmartDictateAI
             tabSettings.Controls.Add(tabModels);
             tabSettings.Controls.Add(tabAudioVad);
             tabSettings.Controls.Add(tabLlmPrompts);
+            tabSettings.Controls.Add(tabVocabReplacements);
             tabSettings.Controls.Add(tabGeneral);
             tabSettings.Location = new Point(12, 12);
             tabSettings.Name = "tabSettings";
@@ -645,7 +665,6 @@ namespace SmartDictateAI
             tabGeneral.Controls.Add(chkShowDebug);
             tabGeneral.Controls.Add(chkShowRealtime);
             tabGeneral.Controls.Add(grpHotkeys);
-            tabGeneral.Controls.Add(grpCustomVocabulary);
             tabGeneral.Location = new Point(4, 24);
             tabGeneral.Name = "tabGeneral";
             tabGeneral.Padding = new Padding(3);
@@ -653,6 +672,162 @@ namespace SmartDictateAI
             tabGeneral.TabIndex = 3;
             tabGeneral.Text = "⚙️ General";
             tabGeneral.UseVisualStyleBackColor = true;
+            // 
+            // tabVocabReplacements
+            // 
+            tabVocabReplacements.Controls.Add(grpCustomVocabulary);
+            tabVocabReplacements.Controls.Add(grpLLMVocabPrompts);
+            tabVocabReplacements.Controls.Add(grpDeterministicReplacements);
+            tabVocabReplacements.Location = new Point(4, 24);
+            tabVocabReplacements.Name = "tabVocabReplacements";
+            tabVocabReplacements.Padding = new Padding(3);
+            tabVocabReplacements.Size = new Size(578, 458);
+            tabVocabReplacements.TabIndex = 4;
+            tabVocabReplacements.Text = "🔤 Vocab & Replacements";
+            tabVocabReplacements.UseVisualStyleBackColor = true;
+            // 
+            // grpLLMVocabPrompts
+            // 
+            grpLLMVocabPrompts.Controls.Add(chkEnableVocabPrompt1);
+            grpLLMVocabPrompts.Controls.Add(chkEnableVocabPrompt2);
+            grpLLMVocabPrompts.Controls.Add(txtVocabPrompt1);
+            grpLLMVocabPrompts.Controls.Add(txtVocabPrompt2);
+            grpLLMVocabPrompts.Location = new Point(15, 140);
+            grpLLMVocabPrompts.Name = "grpLLMVocabPrompts";
+            grpLLMVocabPrompts.Size = new Size(550, 160);
+            grpLLMVocabPrompts.TabIndex = 1;
+            grpLLMVocabPrompts.TabStop = false;
+            grpLLMVocabPrompts.Text = "LLM Custom Vocabulary Prompt Options";
+            // 
+            // chkEnableVocabPrompt1
+            // 
+            chkEnableVocabPrompt1.AutoSize = true;
+            chkEnableVocabPrompt1.Location = new Point(15, 22);
+            chkEnableVocabPrompt1.Name = "chkEnableVocabPrompt1";
+            chkEnableVocabPrompt1.Size = new Size(250, 19);
+            chkEnableVocabPrompt1.TabIndex = 0;
+            chkEnableVocabPrompt1.Text = "Inject 'Preserve' instruction to system prompt";
+            chkEnableVocabPrompt1.UseVisualStyleBackColor = true;
+            // 
+            // chkEnableVocabPrompt2
+            // 
+            chkEnableVocabPrompt2.AutoSize = true;
+            chkEnableVocabPrompt2.Location = new Point(285, 22);
+            chkEnableVocabPrompt2.Name = "chkEnableVocabPrompt2";
+            chkEnableVocabPrompt2.Size = new Size(250, 19);
+            chkEnableVocabPrompt2.TabIndex = 1;
+            chkEnableVocabPrompt2.Text = "Inject 'Sounds-like' instruction to system prompt";
+            chkEnableVocabPrompt2.UseVisualStyleBackColor = true;
+            // 
+            // txtVocabPrompt1
+            // 
+            txtVocabPrompt1.Location = new Point(15, 45);
+            txtVocabPrompt1.Multiline = true;
+            txtVocabPrompt1.Name = "txtVocabPrompt1";
+            txtVocabPrompt1.ScrollBars = ScrollBars.Vertical;
+            txtVocabPrompt1.Size = new Size(250, 100);
+            txtVocabPrompt1.TabIndex = 2;
+            // 
+            // txtVocabPrompt2
+            // 
+            txtVocabPrompt2.Location = new Point(285, 45);
+            txtVocabPrompt2.Multiline = true;
+            txtVocabPrompt2.Name = "txtVocabPrompt2";
+            txtVocabPrompt2.ScrollBars = ScrollBars.Vertical;
+            txtVocabPrompt2.Size = new Size(250, 100);
+            txtVocabPrompt2.TabIndex = 3;
+            // 
+            // grpDeterministicReplacements
+            // 
+            grpDeterministicReplacements.Controls.Add(lstReplacements);
+            grpDeterministicReplacements.Controls.Add(lblRepTarget);
+            grpDeterministicReplacements.Controls.Add(txtRepTarget);
+            grpDeterministicReplacements.Controls.Add(lblRepReplacement);
+            grpDeterministicReplacements.Controls.Add(txtRepReplacement);
+            grpDeterministicReplacements.Controls.Add(btnRepAdd);
+            grpDeterministicReplacements.Controls.Add(btnRepDelete);
+            grpDeterministicReplacements.Location = new Point(15, 310);
+            grpDeterministicReplacements.Name = "grpDeterministicReplacements";
+            grpDeterministicReplacements.Size = new Size(550, 140);
+            grpDeterministicReplacements.TabIndex = 2;
+            grpDeterministicReplacements.TabStop = false;
+            grpDeterministicReplacements.Text = "Deterministic Post-Processing Replacements (Find -> Replace)";
+            // 
+            // lstReplacements
+            // 
+            lstReplacements.Columns.AddRange(new ColumnHeader[] { colTarget, colReplacement });
+            lstReplacements.FullRowSelect = true;
+            lstReplacements.GridLines = true;
+            lstReplacements.Location = new Point(15, 22);
+            lstReplacements.MultiSelect = false;
+            lstReplacements.Name = "lstReplacements";
+            lstReplacements.Size = new Size(330, 105);
+            lstReplacements.TabIndex = 0;
+            lstReplacements.UseCompatibleStateImageBehavior = false;
+            lstReplacements.View = View.Details;
+            lstReplacements.SelectedIndexChanged += lstReplacements_SelectedIndexChanged;
+            // 
+            // colTarget
+            // 
+            colTarget.Text = "Raw / Sounds-like (Find)";
+            colTarget.Width = 155;
+            // 
+            // colReplacement
+            // 
+            colReplacement.Text = "Preferred Brand / Term (Replace)";
+            colReplacement.Width = 155;
+            // 
+            // lblRepTarget
+            // 
+            lblRepTarget.AutoSize = true;
+            lblRepTarget.Location = new Point(360, 22);
+            lblRepTarget.Name = "lblRepTarget";
+            lblRepTarget.Size = new Size(160, 15);
+            lblRepTarget.TabIndex = 1;
+            lblRepTarget.Text = "Find text (case-insensitive):";
+            // 
+            // txtRepTarget
+            // 
+            txtRepTarget.Location = new Point(360, 40);
+            txtRepTarget.Name = "txtRepTarget";
+            txtRepTarget.Size = new Size(175, 23);
+            txtRepTarget.TabIndex = 2;
+            // 
+            // lblRepReplacement
+            // 
+            lblRepReplacement.AutoSize = true;
+            lblRepReplacement.Location = new Point(360, 65);
+            lblRepReplacement.Name = "lblRepReplacement";
+            lblRepReplacement.Size = new Size(77, 15);
+            lblRepReplacement.TabIndex = 3;
+            lblRepReplacement.Text = "Replace with:";
+            // 
+            // txtRepReplacement
+            // 
+            txtRepReplacement.Location = new Point(360, 83);
+            txtRepReplacement.Name = "txtRepReplacement";
+            txtRepReplacement.Size = new Size(175, 23);
+            txtRepReplacement.TabIndex = 4;
+            // 
+            // btnRepAdd
+            // 
+            btnRepAdd.Location = new Point(360, 110);
+            btnRepAdd.Name = "btnRepAdd";
+            btnRepAdd.Size = new Size(82, 23);
+            btnRepAdd.TabIndex = 5;
+            btnRepAdd.Text = "Add / Edit";
+            btnRepAdd.UseVisualStyleBackColor = true;
+            btnRepAdd.Click += btnRepAdd_Click;
+            // 
+            // btnRepDelete
+            // 
+            btnRepDelete.Location = new Point(453, 110);
+            btnRepDelete.Name = "btnRepDelete";
+            btnRepDelete.Size = new Size(82, 23);
+            btnRepDelete.TabIndex = 6;
+            btnRepDelete.Text = "Delete";
+            btnRepDelete.UseVisualStyleBackColor = true;
+            btnRepDelete.Click += btnRepDelete_Click;
             // 
             // chkShowDebug
             // 
@@ -772,10 +947,10 @@ namespace SmartDictateAI
             // 
             grpCustomVocabulary.Controls.Add(lblCustomVocabHelp);
             grpCustomVocabulary.Controls.Add(txtCustomVocabulary);
-            grpCustomVocabulary.Location = new Point(15, 298);
+            grpCustomVocabulary.Location = new Point(15, 10);
             grpCustomVocabulary.Name = "grpCustomVocabulary";
-            grpCustomVocabulary.Size = new Size(550, 145);
-            grpCustomVocabulary.TabIndex = 3;
+            grpCustomVocabulary.Size = new Size(550, 120);
+            grpCustomVocabulary.TabIndex = 0;
             grpCustomVocabulary.TabStop = false;
             grpCustomVocabulary.Text = "Custom Vocabulary (Jargon / Brand Names)";
             // 
@@ -794,7 +969,7 @@ namespace SmartDictateAI
             txtCustomVocabulary.Multiline = true;
             txtCustomVocabulary.Name = "txtCustomVocabulary";
             txtCustomVocabulary.ScrollBars = ScrollBars.Vertical;
-            txtCustomVocabulary.Size = new Size(520, 85);
+            txtCustomVocabulary.Size = new Size(520, 65);
             txtCustomVocabulary.TabIndex = 1;
             // 
             // btnOK
@@ -878,6 +1053,12 @@ namespace SmartDictateAI
             grpHotkeys.PerformLayout();
             grpCustomVocabulary.ResumeLayout(false);
             grpCustomVocabulary.PerformLayout();
+            tabVocabReplacements.ResumeLayout(false);
+            tabVocabReplacements.PerformLayout();
+            grpLLMVocabPrompts.ResumeLayout(false);
+            grpLLMVocabPrompts.PerformLayout();
+            grpDeterministicReplacements.ResumeLayout(false);
+            grpDeterministicReplacements.PerformLayout();
             ResumeLayout(false);
             }
 
@@ -956,5 +1137,21 @@ namespace SmartDictateAI
         private System.Windows.Forms.GroupBox grpCustomVocabulary;
         private System.Windows.Forms.Label lblCustomVocabHelp;
         private System.Windows.Forms.TextBox txtCustomVocabulary;
+        private System.Windows.Forms.TabPage tabVocabReplacements;
+        private System.Windows.Forms.GroupBox grpLLMVocabPrompts;
+        private System.Windows.Forms.CheckBox chkEnableVocabPrompt1;
+        private System.Windows.Forms.CheckBox chkEnableVocabPrompt2;
+        private System.Windows.Forms.TextBox txtVocabPrompt1;
+        private System.Windows.Forms.TextBox txtVocabPrompt2;
+        private System.Windows.Forms.GroupBox grpDeterministicReplacements;
+        private System.Windows.Forms.ListView lstReplacements;
+        private System.Windows.Forms.ColumnHeader colTarget;
+        private System.Windows.Forms.ColumnHeader colReplacement;
+        private System.Windows.Forms.Label lblRepTarget;
+        private System.Windows.Forms.TextBox txtRepTarget;
+        private System.Windows.Forms.Label lblRepReplacement;
+        private System.Windows.Forms.TextBox txtRepReplacement;
+        private System.Windows.Forms.Button btnRepAdd;
+        private System.Windows.Forms.Button btnRepDelete;
         }
 }

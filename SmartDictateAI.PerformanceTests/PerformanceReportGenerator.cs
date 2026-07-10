@@ -20,6 +20,9 @@ namespace SmartDictateAI.PerformanceTests
         public int TotalCases { get; set; }
         public int PassedCases { get; set; }
         public double AccuracyScore { get; set; } // Raw accuracy score (0.0 to 1.0)
+        public double VocabAccuracy { get; set; }
+        public double GrammarAccuracy { get; set; }
+        public double MeaningAccuracy { get; set; }
         public List<TestCaseResult> TestCases { get; set; } = new();
     }
 
@@ -56,12 +59,16 @@ namespace SmartDictateAI.PerformanceTests
         {
             if (res.LoadTimeSec == 0 || res.AvgSpeedTpsOrRtf == 0) return 0;
             
-            // 85% weight on correctness
-            double correctnessPart = res.AccuracyScore * 85.0;
-            // 15% weight on inference speed (relative to highest TPS in the run)
-            double speedPart = (res.AvgSpeedTpsOrRtf / maxTps) * 15.0;
+            // 50% Siemens vocabulary and technical identifier accuracy
+            double vocabPart = res.VocabAccuracy * 50.0;
+            // 25% grammar and punctuation
+            double grammarPart = res.GrammarAccuracy * 25.0;
+            // 15% meaning preservation
+            double meaningPart = res.MeaningAccuracy * 15.0;
+            // 10% speed
+            double speedPart = (res.AvgSpeedTpsOrRtf / maxTps) * 10.0;
             
-            return Math.Round(correctnessPart + speedPart, 1);
+            return Math.Round(vocabPart + grammarPart + meaningPart + speedPart, 1);
         }
 
         private static double CalculateWhisperScore(ModelBenchmarkResult res, double minRtf)
@@ -176,9 +183,9 @@ namespace SmartDictateAI.PerformanceTests
                 // LLM Table
                 sb.AppendLine("## LLM Models Performance Summary (Ranked)");
                 sb.AppendLine();
-                sb.AppendLine("Models are ranked based on a composite rating: **85% Correctness + 15% Generation Speed (TPS)**.");
+                sb.AppendLine("Models are ranked based on a composite rating: **50% Siemens Vocabulary & Tech Identifier Accuracy + 25% Grammar & Punctuation + 15% Meaning Preservation + 10% Generation Speed (TPS)**.");
                 sb.AppendLine();
-                sb.AppendLine("| Rank | Model Name | Temp | Score | Grade | Size | Load Time | Total Time | Avg Speed | Peak RAM | Peak VRAM | Correctness |");
+                sb.AppendLine("| Rank | Model Name | Temp | Score | Grade | Size | Avg Speed | Siemens Vocab | Grammar | Meaning | Peak RAM | Peak VRAM |");
                 sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
 
                 for (int i = 0; i < rankedLlm.Count; i++)
@@ -189,10 +196,9 @@ namespace SmartDictateAI.PerformanceTests
                     var speedStr = $"{r.AvgSpeedTpsOrRtf:F1} tok/s";
                     var ramStr = r.PeakRamMb > 0 ? $"{r.PeakRamMb:F0} MB" : "N/A";
                     var vramStr = r.PeakVramMb > 0 ? $"{r.PeakVramMb:F0} MB" : "N/A";
-                    var totalTime = r.LoadTimeSec + r.TestCases.Sum(tc => tc.DurationSec);
                     var tempStr = r.Temperature.HasValue ? r.Temperature.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "N/A";
 
-                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | {tempStr} | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {r.LoadTimeSec:F2}s | {totalTime:F2}s | {speedStr} | {ramStr} | {vramStr} | {r.PassedCases}/{r.TotalCases} ({r.AccuracyScore * 100:F0}%) |");
+                    sb.AppendLine($"| {i + 1} | **{r.ModelName}** | {tempStr} | **{score:F1}/100** | **{grade}** | {r.FileSizeGb:F2} GB | {speedStr} | {r.VocabAccuracy * 100:F0}% | {r.GrammarAccuracy * 100:F0}% | {r.MeaningAccuracy * 100:F0}% | {ramStr} | {vramStr} |");
                 }
                 sb.AppendLine();
 

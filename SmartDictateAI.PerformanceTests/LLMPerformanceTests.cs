@@ -431,6 +431,9 @@ namespace SmartDictateAI.PerformanceTests
 
                 double totalSpeedTps = 0;
                 double totalDuration = 0;
+                int totalVocab = 0, passedVocab = 0;
+                int totalGrammar = 0, passedGrammar = 0;
+                int totalMeaning = 0, passedMeaning = 0;
 
                 foreach (var testCase in TestCases)
                 {
@@ -487,10 +490,18 @@ namespace SmartDictateAI.PerformanceTests
 
                     foreach (var expected in testCase.ExpectedSubstrings)
                     {
+                        var category = GetAssertionCategory(testCase.Name, expected);
+                        if (category == "SiemensVocab") totalVocab++;
+                        else if (category == "MeaningPreservation") totalMeaning++;
+                        else totalGrammar++;
+
                         var normalizedExpected = NormalizeText(expected);
                         if (normalizedOutput.Contains(normalizedExpected, StringComparison.Ordinal))
                         {
                             passedChecks++;
+                            if (category == "SiemensVocab") passedVocab++;
+                            else if (category == "MeaningPreservation") passedMeaning++;
+                            else passedGrammar++;
                         }
                         else
                         {
@@ -500,9 +511,17 @@ namespace SmartDictateAI.PerformanceTests
 
                     foreach (var forbidden in testCase.ForbiddenSubstrings)
                     {
+                        var category = GetAssertionCategory(testCase.Name, forbidden);
+                        if (category == "SiemensVocab") totalVocab++;
+                        else if (category == "MeaningPreservation") totalMeaning++;
+                        else totalGrammar++;
+
                         if (!refinedOutput.Contains(forbidden, StringComparison.Ordinal))
                         {
                             passedChecks++;
+                            if (category == "SiemensVocab") passedVocab++;
+                            else if (category == "MeaningPreservation") passedMeaning++;
+                            else passedGrammar++;
                         }
                         else
                         {
@@ -547,6 +566,9 @@ namespace SmartDictateAI.PerformanceTests
                 benchmarkResult.PeakVramMb = peakVramMb;
 
                 benchmarkResult.AccuracyScore = benchmarkResult.TotalCases > 0 ? (double)benchmarkResult.PassedCases / benchmarkResult.TotalCases : 0;
+                benchmarkResult.VocabAccuracy = totalVocab > 0 ? (double)passedVocab / totalVocab : 1.0;
+                benchmarkResult.GrammarAccuracy = totalGrammar > 0 ? (double)passedGrammar / totalGrammar : 1.0;
+                benchmarkResult.MeaningAccuracy = totalMeaning > 0 ? (double)passedMeaning / totalMeaning : 1.0;
 
                 // Add result & trigger report update
                 PerformanceReportGenerator.AddResult(benchmarkResult);
@@ -577,6 +599,46 @@ namespace SmartDictateAI.PerformanceTests
                 }
             }
             return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+        }
+
+        private static string GetAssertionCategory(string testCaseName, string substring)
+        {
+            string subLower = substring.ToLowerInvariant().Trim();
+            
+            // Siemens & Technical Identifiers
+            string[] siemensKeywords = new[]
+            {
+                "simatic", "step 7", "step7", "s7", "s1500", "s 1500", "s71500", "s71200", "s300", "s400",
+                "tia", "tea portal", "wincc", "win cc", "unifide", "flexable", "flexible",
+                "panel", "pannel", "sm@rtserver", "smartserver", "smart server", "smart serve", "smart saver",
+                "profinet", "profibus", "profi net", "profi bus", "profy net",
+                "scalance", "scaleance", "switch", "ruggedcom", "rugged com",
+                "opc", "op c u a", "op c ua", "sitop", "site top", "siplus", "syplus", "sy plus",
+                "sinema", "cinema", "logo", "plc", "cpu", "hmi", "io", "i/o", "firmware", "controller",
+                "et 200", "et200", "ee tee"
+            };
+
+            if (siemensKeywords.Any(k => subLower.Contains(k)))
+            {
+                return "SiemensVocab";
+            }
+
+            // Meaning Preservation
+            // Matches test cases related to numbers, measurements, or references containing digits
+            if (testCaseName.Equals("Numbers & Measurements", StringComparison.OrdinalIgnoreCase) ||
+                testCaseName.Equals("Ambiguity & Inference", StringComparison.OrdinalIgnoreCase) ||
+                subLower.Any(char.IsDigit) ||
+                subLower.Contains("%") ||
+                subLower.Contains("percent") ||
+                subLower.Contains("degree") ||
+                subLower.Contains("celsius") ||
+                subLower.Contains("rpm"))
+            {
+                return "MeaningPreservation";
+            }
+
+            // Default to Grammar & Punctuation
+            return "GrammarPunctuation";
         }
     }
 }

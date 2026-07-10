@@ -32,6 +32,7 @@ namespace SmartDictateAI.Services
                 // If file has no profiles or anti-prompts, inject defaults
                 settings.EnsureDefaultPromptProfiles();
                 settings.EnsureDefaultLLMAntiPrompts();
+                settings.EnsureDefaultVocabularyReplacements();
 
                 onDebugMessage?.Invoke($"[VAD] Loaded Whisper Model: {settings.ModelFilePath}, LLM Model: {settings.LocalLLMModelPath}, VAD Mode: {settings.VadMode}, Mic: {settings.SelectedMicrophoneDevice}");
             }
@@ -39,6 +40,7 @@ namespace SmartDictateAI.Services
             {
                 onDebugMessage?.Invoke($"[Settings] '{filePath}' not found. Using/Creating defaults.");
                 settings.EnsureDefaultPromptProfiles();
+                settings.EnsureDefaultVocabularyReplacements();
                 SaveSettings(filePath, settings, onDebugMessage);
             }
 

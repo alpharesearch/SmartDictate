@@ -29,8 +29,8 @@ namespace SmartDictateAI
         public int LLMMaxOutputTokens { get; set; } = -1; // Max tokens LLM should generate
         public List<string> LLMAntiPrompts { get; set; } = GetDefaultLLMAntiPrompts();
         public string LLMPromptTemplate { get; set; } = ""; // Empty string enables Auto-Prompt Formatting
-        public string LLMSystemPrompt { get; set; } = "You are an expert copy editor. Your task is to refine the raw transcription. Correct spelling and grammar errors, insert proper punctuation, remove conversational filler, and enhance clarity. Output ONLY the refined text.";
-        public string LLMUserPrompt { get; set; } = "Refine the following text. Do not include any explanations, preamble, or notes. Text:\n";
+        public string LLMSystemPrompt { get; set; } = "You are an expert copy editor. Your task is to refine the raw transcription. Correct spelling and grammar errors, insert proper punctuation, remove conversational filler such as \"uh\", \"um\", \"okay\", \"so\", \"basically\", \"like\", and \"you know\" when it does not add technical meaning, and enhance clarity. Output ONLY the refined text. Do not add explanations, labels, quotes, markdown, headings, or introductory phrases. Output only the corrected text.";
+        public string LLMUserPrompt { get; set; } = "Refine the following text. Do not include any explanations, preamble, or notes. Do not add explanations, labels, quotes, markdown, headings, or introductory phrases. Output only the corrected text. Text:\n";
         public bool UseGpu { get; set; } = true; // Default to trying GPU. llama.cpp usually falls back to CPU if GPU init fails.
 
         // Audio Chunking & VAD Settings
@@ -40,7 +40,7 @@ namespace SmartDictateAI
         public double DictationSilenceThresholdSeconds { get; set; } = 0.75;
         public float VadGainMultiplier { get; set; } = 1.0f;
         public bool MaintainContextAcrossChunks { get; set; } = true;
-        public string CustomVocabulary { get; set; } = "SIMATIC, WinCC, WinCC flexible, WinCC Unified, TIA Portal, Comfort Panel, Basic Panel, Mobile Panel, Key Panel, Sm@rtServer, PROFINET, PROFIBUS, SCALANCE, RUGGEDCOM, OPC UA, Industrial Ethernet, SINEMA, STEP 7, S7-1200, S7-1500, S7-300, S7-400, ET 200SP, ET 200MP, SITOP, SIPLUS, LOGO!";
+        public string CustomVocabulary { get; set; } = "SIMATIC, WinCC, WinCC flexible, WinCC Unified, TIA Portal, Comfort Panel, Basic Panel, Mobile Panel, Key Panel, Sm@rtServer, PROFINET, PROFIBUS, SCALANCE, RUGGEDCOM, OPC UA, Industrial Ethernet, SINEMA, STEP 7, S7-1200, S7-1500, S7-300, S7-400, ET 200SP, ET 200MP, SITOP, SIPLUS, LOGO!, SIMATIC NET. ";
 
         // Hotkey Settings
         public string DictationHotkeyModifiers { get; set; } = "Control, Alt";
@@ -52,6 +52,12 @@ namespace SmartDictateAI
         public List<PromptProfile> PromptProfiles { get; set; } = new();
 
         public string ActivePromptProfileName { get; set; } = "Copy Editor";
+
+        public bool EnableVocabPrompt1 { get; set; } = true;
+        public bool EnableVocabPrompt2 { get; set; } = true;
+        public string VocabPrompt1Text { get; set; } = "CRITICAL: The user has specified the following custom vocabulary terms that must be preserved exactly with their correct spelling and capitalization if they appear phonetically or as similar misrecognized words in the transcription (do not change or 'correct' them to general words): {0}";
+        public string VocabPrompt2Text { get; set; } = "If a phrase sounds like one of the custom vocabulary terms, replace it with the exact vocabulary term. For example, \"site top\" must become \"SITOP\", \"smart server\" must become \"Sm@rtServer\", \"tea portal\" must become \"TIA Portal\", \"profi net\" must become \"PROFINET\", \"scaleance\" must become \"SCALANCE\", and \"s seven fifteen hundred\" must become \"S7-1500\".";
+        public List<VocabularyReplacement> VocabularyReplacements { get; set; } = new();
 
         public void CopyFrom(AppSettings source)
         {
@@ -85,6 +91,17 @@ namespace SmartDictateAI
             ProofreadHotkeyModifiers = source.ProofreadHotkeyModifiers;
             ProofreadHotkeyKey = source.ProofreadHotkeyKey;
             ActivePromptProfileName = source.ActivePromptProfileName;
+            EnableVocabPrompt1 = source.EnableVocabPrompt1;
+            EnableVocabPrompt2 = source.EnableVocabPrompt2;
+            VocabPrompt1Text = source.VocabPrompt1Text;
+            VocabPrompt2Text = source.VocabPrompt2Text;
+            VocabularyReplacements = source.VocabularyReplacements != null
+                ? source.VocabularyReplacements.Select(r => new VocabularyReplacement
+                {
+                    Target = r.Target,
+                    Replacement = r.Replacement
+                }).ToList()
+                : new List<VocabularyReplacement>();
             PromptProfiles = source.PromptProfiles != null
                 ? source.PromptProfiles.Select(p => new PromptProfile
                 {
@@ -128,14 +145,14 @@ namespace SmartDictateAI
             new PromptProfile
             {
                 Name = "Strict Proofreader",
-                SystemPrompt = "You are a strict proofreader. Your task is to fix spelling, grammar, and punctuation in American English. Do not rewrite, summarize, or change the author's original voice. Output ONLY the final corrected text without any conversational filler, explanations, or introductory phrases.",
-                UserPrompt = "Correct the following text. Follow these strict rules:\n\n- Use American English\n- Fix grammar, spelling, and punctuation only\n- Keep the original words wherever possible\n- Preserve URLs exactly\n- Use straight quotes: \"like this\"\n- Do NOT use em dashes\n\nText:\n"
+                SystemPrompt = "You are a strict proofreader. Your task is to fix spelling, grammar, and punctuation in American English. Do not rewrite, summarize, or change the author's original voice. Output ONLY the final corrected text. Remove conversational filler such as \"uh\", \"um\", \"okay\", \"so\", \"basically\", \"like\", and \"you know\" when it does not add technical meaning. Do not add explanations, labels, quotes, markdown, headings, or introductory phrases. Output only the corrected text.",
+                UserPrompt = "Correct the following text. Follow these strict rules:\n\n- Use American English\n- Fix grammar, spelling, and punctuation only\n- Keep the original words wherever possible\n- Preserve URLs exactly\n- Use straight quotes: \"like this\"\n- Do NOT use em dashes\n- Do not add explanations, labels, quotes, markdown, headings, or introductory phrases. Output only the corrected text.\n\nText:\n"
             },
             new PromptProfile
             {
                 Name = "Copy Editor",
-                SystemPrompt = "You are an expert copy editor. Your task is to refine the raw transcription. Correct spelling and grammar errors, insert proper punctuation, remove conversational filler, and enhance clarity. Output ONLY the refined text.",
-                UserPrompt = "Refine the following text. Do not include any explanations, preamble, or notes. Text:\n"
+                SystemPrompt = "You are an expert copy editor. Your task is to refine the raw transcription. Correct spelling and grammar errors, insert proper punctuation, remove conversational filler such as \"uh\", \"um\", \"okay\", \"so\", \"basically\", \"like\", and \"you know\" when it does not add technical meaning, and enhance clarity. Output ONLY the refined text. Do not add explanations, labels, quotes, markdown, headings, or introductory phrases. Output only the corrected text.",
+                UserPrompt = "Refine the following text. Do not include any explanations, preamble, or notes. Do not add explanations, labels, quotes, markdown, headings, or introductory phrases. Output only the corrected text. Text:\n"
             },
             new PromptProfile
             {
@@ -198,5 +215,27 @@ namespace SmartDictateAI
                 UserPrompt = "Translate the following text to English. Text:\n"
             }
         };
+
+        public static List<VocabularyReplacement> GetDefaultVocabularyReplacements() => new()
+        {
+            new() { Target = "SmartServer", Replacement = "Sm@rtServer" },
+            new() { Target = "Smart Server", Replacement = "Sm@rtServer" },
+            new() { Target = "site top", Replacement = "SITOP" },
+            new() { Target = "Site top", Replacement = "SITOP" },
+            new() { Target = "SIMATIC Net", Replacement = "SIMATIC NET" },
+            new() { Target = "Simatic Net", Replacement = "SIMATIC NET" },
+            new() { Target = "ET200SP", Replacement = "ET 200SP" },
+            new() { Target = "ET200 SP", Replacement = "ET 200SP" },
+            new() { Target = "S1500", Replacement = "S7-1500" },
+            new() { Target = "S 1500", Replacement = "S7-1500" }
+        };
+
+        public void EnsureDefaultVocabularyReplacements()
+        {
+            if (VocabularyReplacements == null || VocabularyReplacements.Count == 0)
+            {
+                VocabularyReplacements = GetDefaultVocabularyReplacements();
+            }
+        }
     }
 }

@@ -77,7 +77,14 @@ namespace SmartDictateAI.Services
 
             if (!string.IsNullOrWhiteSpace(settings.CustomVocabulary))
             {
-                systemPrompt += $"\n\nCRITICAL: The user has specified the following custom vocabulary terms that must be preserved exactly with their correct spelling and capitalization if they appear phonetically or as similar misrecognized words in the transcription (do not change or 'correct' them to general words): {settings.CustomVocabulary}";
+                if (settings.EnableVocabPrompt1 && !string.IsNullOrWhiteSpace(settings.VocabPrompt1Text))
+                {
+                    systemPrompt += "\n\n" + string.Format(settings.VocabPrompt1Text, settings.CustomVocabulary);
+                }
+                if (settings.EnableVocabPrompt2 && !string.IsNullOrWhiteSpace(settings.VocabPrompt2Text))
+                {
+                    systemPrompt += "\n\n" + settings.VocabPrompt2Text;
+                }
             }
 
             if (_llmExecutor == null)
@@ -168,6 +175,9 @@ namespace SmartDictateAI.Services
                 // Clean reasoning/thinking blocks if present
                 finalResult = StripThinkingBlocks(finalResult);
 
+                // Apply deterministic vocabulary replacements from settings
+                finalResult = ApplyVocabularyReplacements(finalResult, settings);
+
                 onDebugMessage?.Invoke("[LLM] LLamaSharp processing successful. " + finalResult);
                 return finalResult;
             }
@@ -222,6 +232,31 @@ namespace SmartDictateAI.Services
             // Clean up any double spaces/newlines left after removal
             text = System.Text.RegularExpressions.Regex.Replace(text, @"\r?\n\s*\r?\n", "\n\n");
             return text.Trim();
+        }
+
+        /// <summary>
+        /// Applies deterministic vocabulary replacements from settings to the text.
+        /// </summary>
+        public static string ApplyVocabularyReplacements(string text, AppSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(text) || settings?.VocabularyReplacements == null) return text;
+
+            foreach (var rep in settings.VocabularyReplacements)
+            {
+                if (string.IsNullOrWhiteSpace(rep.Target)) continue;
+
+                // Match with word boundaries and case-insensitivity
+                string escapedTarget = System.Text.RegularExpressions.Regex.Escape(rep.Target);
+                string pattern = $@"\b{escapedTarget}\b";
+                text = System.Text.RegularExpressions.Regex.Replace(
+                    text, 
+                    pattern, 
+                    rep.Replacement ?? string.Empty, 
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                );
+            }
+
+            return text;
         }
 
         /// <summary>

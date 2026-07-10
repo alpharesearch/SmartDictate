@@ -91,6 +91,12 @@ namespace SmartDictateAI
             txtProofreadModifiers.Text = _clonedSettings.ProofreadHotkeyModifiers;
             txtProofreadKey.Text = _clonedSettings.ProofreadHotkeyKey;
 
+            chkEnableVocabPrompt1.Checked = _clonedSettings.EnableVocabPrompt1;
+            chkEnableVocabPrompt2.Checked = _clonedSettings.EnableVocabPrompt2;
+            txtVocabPrompt1.Text = _clonedSettings.VocabPrompt1Text;
+            txtVocabPrompt2.Text = _clonedSettings.VocabPrompt2Text;
+            PopulateReplacementsList();
+
             _loadingForm = false;
             }
 
@@ -372,6 +378,10 @@ namespace SmartDictateAI
 
             _clonedSettings.ShowRealtimeTranscription = chkShowRealtime.Checked;
             _clonedSettings.CustomVocabulary = txtCustomVocabulary.Text.Trim();
+            _clonedSettings.EnableVocabPrompt1 = chkEnableVocabPrompt1.Checked;
+            _clonedSettings.EnableVocabPrompt2 = chkEnableVocabPrompt2.Checked;
+            _clonedSettings.VocabPrompt1Text = txtVocabPrompt1.Text;
+            _clonedSettings.VocabPrompt2Text = txtVocabPrompt2.Text;
             _clonedSettings.DictationHotkeyModifiers = dictationMods;
             _clonedSettings.DictationHotkeyKey = dictationKey;
             _clonedSettings.ProofreadHotkeyModifiers = proofreadMods;
@@ -462,6 +472,11 @@ namespace SmartDictateAI
                 txtProofreadModifiers.Text = _clonedSettings.ProofreadHotkeyModifiers;
                 txtProofreadKey.Text = _clonedSettings.ProofreadHotkeyKey;
                 txtCustomVocabulary.Text = _clonedSettings.CustomVocabulary;
+                chkEnableVocabPrompt1.Checked = _clonedSettings.EnableVocabPrompt1;
+                chkEnableVocabPrompt2.Checked = _clonedSettings.EnableVocabPrompt2;
+                txtVocabPrompt1.Text = _clonedSettings.VocabPrompt1Text;
+                txtVocabPrompt2.Text = _clonedSettings.VocabPrompt2Text;
+                PopulateReplacementsList();
 
                 _loadingForm = false;
                 }
@@ -498,5 +513,82 @@ namespace SmartDictateAI
                 MessageBox.Show($"Could not open the link: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
+
+        private void PopulateReplacementsList()
+        {
+            lstReplacements.Items.Clear();
+            if (_clonedSettings.VocabularyReplacements != null)
+            {
+                foreach (var rep in _clonedSettings.VocabularyReplacements)
+                {
+                    var item = new ListViewItem(rep.Target);
+                    item.SubItems.Add(rep.Replacement);
+                    item.Tag = rep;
+                    lstReplacements.Items.Add(item);
+                }
+            }
+            txtRepTarget.Clear();
+            txtRepReplacement.Clear();
+        }
+
+        private void btnRepAdd_Click(object sender, EventArgs e)
+        {
+            string target = txtRepTarget.Text.Trim();
+            string replacement = txtRepReplacement.Text.Trim();
+
+            if (string.IsNullOrEmpty(target))
+            {
+                MessageBox.Show("Please enter a target phrase to replace.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (_clonedSettings.VocabularyReplacements == null)
+            {
+                _clonedSettings.VocabularyReplacements = new List<VocabularyReplacement>();
+            }
+
+            // Check if it already exists to update it, or add new
+            var existing = _clonedSettings.VocabularyReplacements.FirstOrDefault(r => r.Target.Equals(target, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.Replacement = replacement;
+            }
+            else
+            {
+                _clonedSettings.VocabularyReplacements.Add(new VocabularyReplacement { Target = target, Replacement = replacement });
+            }
+
+            PopulateReplacementsList();
+        }
+
+        private void btnRepDelete_Click(object sender, EventArgs e)
+        {
+            if (lstReplacements.SelectedItems.Count > 0)
+            {
+                var selectedItem = lstReplacements.SelectedItems[0];
+                if (selectedItem.Tag is VocabularyReplacement rep)
+                {
+                    _clonedSettings.VocabularyReplacements.Remove(rep);
+                    PopulateReplacementsList();
+                }
+            }
+            else
+            {
+                MessageBox.Show("Please select a replacement from the list to delete.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void lstReplacements_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (lstReplacements.SelectedItems.Count > 0)
+            {
+                var selectedItem = lstReplacements.SelectedItems[0];
+                if (selectedItem.Tag is VocabularyReplacement rep)
+                {
+                    txtRepTarget.Text = rep.Target;
+                    txtRepReplacement.Text = rep.Replacement;
+                }
+            }
+        }
         }
     }

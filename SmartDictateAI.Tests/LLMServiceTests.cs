@@ -196,5 +196,39 @@ namespace SmartDictateAI.Tests
                 _output.WriteLine("[Local Models Verification] No local models folder found, skipping verification.");
             }
         }
+
+        [Fact]
+        public void ApplyVocabularyReplacements_ShouldReplaceConfiguredTerms()
+        {
+            // Arrange
+            var settings = new AppSettings();
+            settings.VocabularyReplacements = new List<VocabularyReplacement>
+            {
+                new() { Target = "SmartServer", Replacement = "Sm@rtServer" },
+                new() { Target = "Smart Server", Replacement = "Sm@rtServer" },
+                new() { Target = "site top", Replacement = "SITOP" },
+                new() { Target = "Site top", Replacement = "SITOP" },
+                new() { Target = "SIMATIC Net", Replacement = "SIMATIC NET" },
+                new() { Target = "ET200SP", Replacement = "ET 200SP" },
+                new() { Target = "ET200 SP", Replacement = "ET 200SP" },
+                new() { Target = "S1500", Replacement = "S7-1500" },
+                new() { Target = "S 1500", Replacement = "S7-1500" }
+            };
+
+            // Act & Assert
+            Assert.Equal("We need to configure the Sm@rtServer.", LLMService.ApplyVocabularyReplacements("We need to configure the SmartServer.", settings));
+            Assert.Equal("The Sm@rtServer is running.", LLMService.ApplyVocabularyReplacements("The Smart Server is running.", settings));
+            Assert.Equal("Use SITOP power supplies.", LLMService.ApplyVocabularyReplacements("Use site top power supplies.", settings));
+            Assert.Equal("Use SITOP power supplies.", LLMService.ApplyVocabularyReplacements("Use Site top power supplies.", settings));
+            Assert.Equal("Connect via SIMATIC NET.", LLMService.ApplyVocabularyReplacements("Connect via SIMATIC Net.", settings));
+            Assert.Equal("Configure ET 200SP modules.", LLMService.ApplyVocabularyReplacements("Configure ET200SP modules.", settings));
+            Assert.Equal("Configure ET 200SP modules.", LLMService.ApplyVocabularyReplacements("Configure ET200 SP modules.", settings));
+            Assert.Equal("This runs on the S7-1500 PLC.", LLMService.ApplyVocabularyReplacements("This runs on the S1500 PLC.", settings));
+            Assert.Equal("This runs on the S7-1500 PLC.", LLMService.ApplyVocabularyReplacements("This runs on the S 1500 PLC.", settings));
+            
+            // Boundary checks: shouldn't replace substrings within other words
+            Assert.Equal("The asset name is AS15000.", LLMService.ApplyVocabularyReplacements("The asset name is AS15000.", settings));
+            Assert.Equal("This is site topography.", LLMService.ApplyVocabularyReplacements("This is site topography.", settings));
+        }
     }
 }
