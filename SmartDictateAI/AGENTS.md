@@ -13,6 +13,7 @@ SmartDictate core development.
 
 ## Work Guidance
 - Settings: App settings are mapped to the `AppSettings.cs` class. When updating values in the settings form, use cloned copy structures to support atomic Cancel/OK transactions.
+- Logging: Ensure all key processing/post-processing steps (such as anti-prompt stripping, thinking blocks cleaning, and vocabulary replacements) log their details to the debug output for complete visibility.
 - Naming:
   - PascalCase for classes, methods, and public properties.
   - camelCase for local variables and parameters.

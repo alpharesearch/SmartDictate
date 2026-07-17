@@ -11,9 +11,9 @@
     <ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <!-- Versioning Info -->
-    <Version>1.0.3</Version>
-    <AssemblyVersion>1.0.3.0</AssemblyVersion>
-    <FileVersion>1.0.3.0</FileVersion>
+    <Version>1.0.4</Version>
+    <AssemblyVersion>1.0.4.0</AssemblyVersion>
+    <FileVersion>1.0.4.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

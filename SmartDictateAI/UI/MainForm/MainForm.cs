@@ -28,6 +28,7 @@ namespace SmartDictateAI
         private List<PerformanceCounter> _vramCounters = new List<PerformanceCounter>();
         private Dictionary<string, PerformanceCounter> _processVramCounters = new Dictionary<string, PerformanceCounter>();
         private bool _loadingUi;
+        private bool _applyingSettings;
 
         public MainForm()
             {
@@ -47,9 +48,9 @@ namespace SmartDictateAI
             transcriptionService.VisualStateChanged += TranscriptionService_VisualStateChanged;
 
             // Set initial UI state from settings
-            cmbPromptSelect.DataSource = transcriptionService.Settings.PromptProfiles;
             cmbPromptSelect.DisplayMember = "Name";
             cmbPromptSelect.ValueMember = "Name";
+            cmbPromptSelect.DataSource = transcriptionService.Settings.PromptProfiles;
 
 
             textBoxDebug.Visible = transcriptionService.Settings.ShowDebugMessages; // txtDebugOutput
@@ -62,10 +63,10 @@ namespace SmartDictateAI
             btnCopyLLMText.Enabled = false;
             btnLLMcb.Enabled = false;
             SetupContextMenus();
-            _loadingUi = false;
             AppendToDebugOutput($"[UI] Init comboBox1.SelectedValue: {transcriptionService.Settings.ActivePromptProfileName}");
             cmbPromptSelect.SelectedIndex = -1; // Force a selection change
             cmbPromptSelect.SelectedValue = transcriptionService.Settings.ActivePromptProfileName;
+            _loadingUi = false;
             }
 
         private void SetupContextMenus()
@@ -737,10 +738,10 @@ namespace SmartDictateAI
                 return;
                 }
 
-            if (isStoppingOrProcessingFinal)
+            if (isStoppingOrProcessingFinal || _applyingSettings)
                 {
                 btnStartStop.Enabled = false;
-                btnStartStop.Text = "Processing...";
+                btnStartStop.Text = _applyingSettings ? "Applying..." : "Processing...";
                 }
             else
                 {
@@ -749,10 +750,10 @@ namespace SmartDictateAI
                 }
 
             // Enable/disable Settings button
-            btnSettings.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal;
+            btnSettings.Enabled = !isFormRecordingState && !isStoppingOrProcessingFinal && !_applyingSettings;
 
             // Copy and rerun LLM button states
-            if (!isFormRecordingState && !isStoppingOrProcessingFinal) // Only enable copy and rerun LLM buttons when not recording and not stopping/processing
+            if (!isFormRecordingState && !isStoppingOrProcessingFinal && !_applyingSettings) // Only enable copy and rerun LLM buttons when not recording and not stopping/processing
                 {
                 btnCopyRawText.Enabled = !string.IsNullOrEmpty(transcriptionService.LastRawFilteredText);
                 btnCopyLLMText.Enabled = transcriptionService.WasLastProcessingWithLLM &&
@@ -897,6 +898,9 @@ namespace SmartDictateAI
                 return;
                 }
 
+            // Refresh available microphones list in case a device was plugged/unplugged
+            availableMicrophones = TranscriptionService.GetAvailableMicrophones();
+
             using (SettingsForm settingsForm = new SettingsForm(transcriptionService.Settings, availableMicrophones))
                 {
                 if (settingsForm.ShowDialog(this) == DialogResult.OK)
@@ -904,48 +908,58 @@ namespace SmartDictateAI
                     var newSettings = settingsForm.UpdatedSettings;
                     if (newSettings == null) return;
 
-                    bool whisperChanged = transcriptionService.Settings.ModelFilePath != newSettings.ModelFilePath;
-                    bool llmChanged = transcriptionService.Settings.LocalLLMModelPath != newSettings.LocalLLMModelPath;
-
-                    // Select the microphone in the service
-                    transcriptionService.SelectMicrophone(newSettings.SelectedMicrophoneDevice);
-
-                    // Apply model changes asynchronously (must run before copying other fields to ensure correct change detection)
-                    if (whisperChanged)
-                        {
-                        AppendToDebugOutput($"[Settings] New Whisper model selected: {newSettings.ModelFilePath}");
-                        await transcriptionService.ChangeModelPathAsync(newSettings.ModelFilePath);
-                        }
-
-                    if (llmChanged)
-                        {
-                        AppendToDebugOutput($"[Settings] New LLM model selected: {newSettings.LocalLLMModelPath}");
-                        await transcriptionService.ChangeLLMModelPathAsync(newSettings.LocalLLMModelPath);
-                        }
-
-                    // Copy all settings fields including newly exposed advanced options
-                    transcriptionService.Settings.CopyFrom(newSettings);
-
-                    // Save settings
-                    transcriptionService.SaveAppSettings();
-
-                    // Re-initialize hotkey service with new hotkeys and update instruction labels
-                    InitializeHotkeyService();
-
-                    // Apply UI visibility updates
-                    UpdateUIFromServiceSettings();
+                    _applyingSettings = true;
                     UpdateButtonStates();
 
-                    // Keep combobox in sync for Prompt Selection on MainForm
-                    _loadingUi = true;
-                    cmbPromptSelect.DataSource = null;
-                    cmbPromptSelect.DataSource = transcriptionService.Settings.PromptProfiles;
-                    cmbPromptSelect.DisplayMember = "Name";
-                    cmbPromptSelect.ValueMember = "Name";
-                    cmbPromptSelect.SelectedValue = transcriptionService.Settings.ActivePromptProfileName;
-                    _loadingUi = false;
+                    try
+                        {
+                        bool whisperChanged = transcriptionService.Settings.ModelFilePath != newSettings.ModelFilePath;
+                        bool llmChanged = transcriptionService.Settings.LocalLLMModelPath != newSettings.LocalLLMModelPath;
 
-                    AppendToDebugOutput("[Settings] Settings successfully updated and saved.");
+                        // Select the microphone in the service
+                        transcriptionService.SelectMicrophone(newSettings.SelectedMicrophoneDevice);
+
+                        // Apply model changes asynchronously (must run before copying other fields to ensure correct change detection)
+                        if (whisperChanged)
+                            {
+                            AppendToDebugOutput($"[Settings] New Whisper model selected: {newSettings.ModelFilePath}");
+                            await transcriptionService.ChangeModelPathAsync(newSettings.ModelFilePath);
+                            }
+
+                        if (llmChanged)
+                            {
+                            AppendToDebugOutput($"[Settings] New LLM model selected: {newSettings.LocalLLMModelPath}");
+                            await transcriptionService.ChangeLLMModelPathAsync(newSettings.LocalLLMModelPath);
+                            }
+
+                        // Copy all settings fields including newly exposed advanced options
+                        transcriptionService.Settings.CopyFrom(newSettings);
+
+                        // Save settings
+                        transcriptionService.SaveAppSettings();
+
+                        // Re-initialize hotkey service with new hotkeys and update instruction labels
+                        InitializeHotkeyService();
+
+                        // Apply UI visibility updates
+                        UpdateUIFromServiceSettings();
+
+                        // Keep combobox in sync for Prompt Selection on MainForm
+                        _loadingUi = true;
+                        cmbPromptSelect.DataSource = null;
+                        cmbPromptSelect.DisplayMember = "Name";
+                        cmbPromptSelect.ValueMember = "Name";
+                        cmbPromptSelect.DataSource = transcriptionService.Settings.PromptProfiles;
+                        cmbPromptSelect.SelectedValue = transcriptionService.Settings.ActivePromptProfileName;
+                        _loadingUi = false;
+
+                        AppendToDebugOutput("[Settings] Settings successfully updated and saved.");
+                        }
+                    finally
+                        {
+                        _applyingSettings = false;
+                        UpdateButtonStates();
+                        }
                     }
                 else
                     {
