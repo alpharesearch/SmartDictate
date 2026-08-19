@@ -16,9 +16,10 @@ namespace SmartDictateAI.Tests
             settings.EnsureDefaultPromptProfiles();
 
             // Assert
-            // Ensure exactly 12 defaults are added
-            Assert.Equal(12, settings.PromptProfiles.Count);
+            // Ensure exactly 13 defaults are added
+            Assert.Equal(13, settings.PromptProfiles.Count);
             Assert.Contains(settings.PromptProfiles, p => p.Name == "Strict Proofreader");
+            Assert.Contains(settings.PromptProfiles, p => p.Name == "Simplified Technical English (STE)");
             Assert.Contains(settings.PromptProfiles, p => p.Name == "German Copy Editor");
         }
 
@@ -34,8 +35,8 @@ namespace SmartDictateAI.Tests
             settings.EnsureDefaultPromptProfiles();
 
             // Assert
-            // It should have exactly 12 default profiles, but the one we customized beforehand should remain customized
-            Assert.Equal(12, settings.PromptProfiles.Count);
+            // It should have exactly 13 default profiles, but the one we customized beforehand should remain customized
+            Assert.Equal(13, settings.PromptProfiles.Count);
             var strict = settings.PromptProfiles.Find(p => p.Name == "Strict Proofreader");
             Assert.NotNull(strict);
             Assert.Equal("CustomSP", strict.SystemPrompt);
