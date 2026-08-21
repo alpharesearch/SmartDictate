@@ -233,7 +233,9 @@ namespace SmartDictateAI
             new() { Target = "ET200SP", Replacement = "ET 200SP" },
             new() { Target = "ET200 SP", Replacement = "ET 200SP" },
             new() { Target = "S1500", Replacement = "S7-1500" },
-            new() { Target = "S 1500", Replacement = "S7-1500" }
+            new() { Target = "S 1500", Replacement = "S7-1500" },
+            new() { Target = "c-portal", Replacement = "SiePortal" },
+            new() { Target = "c portal", Replacement = "SiePortal" }
         };
 
         public void EnsureDefaultVocabularyReplacements()
