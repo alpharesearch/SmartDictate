@@ -6,7 +6,7 @@ namespace SmartDictateAI.Services
 {
     public class AudioCaptureService : IAudioCaptureService
     {
-        private WaveInEvent? _waveIn;
+        private WaveIn? _waveIn;
         public bool IsRecording { get; private set; }
 
         public event EventHandler<WaveInEventArgs>? DataAvailable;
@@ -19,7 +19,7 @@ namespace SmartDictateAI.Services
                 throw new InvalidOperationException("Already recording.");
             }
 
-            _waveIn = new WaveInEvent
+            _waveIn = new WaveIn
             {
                 DeviceNumber = deviceNumber,
                 WaveFormat = waveFormat
