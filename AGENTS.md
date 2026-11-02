@@ -13,7 +13,7 @@ SmartDictate is a C# .NET 9 Windows Forms application that provides local, priva
 
 ### Key Features
 *   **Global Dictation Mode:** Hotkey-triggered dictation that types transcribed text directly into any application.
-*   **Clipboard Proofreading:** Hotkey-triggered proofreading of clipboard text using a local LLM.
+*   **Clipboard Proofreading:** Hotkey-triggered or in-app paste (`Ctrl+V` / context menu) proofreading of clipboard text using a local LLM, automatically copying the refined result to the clipboard.
 *   **Local LLM Refinement:** Automatically corrects grammar, spelling, and punctuation.
 *   **Auto-Prompt Formatting:** Dynamically formats instructions based on the loaded LLM model (Qwen, Llama, Gemma).
 *   **Consolidated Tabbed Settings:** Adjust Whisper and LLM paths, VAD settings, silence thresholds, system/user prompt profiles, and custom hotkeys in a single unified settings form.

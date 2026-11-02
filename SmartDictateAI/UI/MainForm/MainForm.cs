@@ -75,7 +75,7 @@ namespace SmartDictateAI
             var outputMenu = new ContextMenuStrip();
             outputMenu.Items.Add("Cut", null, (s, e) => textBoxOutput.Cut());
             outputMenu.Items.Add("Copy", null, (s, e) => textBoxOutput.Copy());
-            outputMenu.Items.Add("Paste", null, (s, e) => textBoxOutput.Paste());
+            outputMenu.Items.Add("Paste", null, (s, e) => _ = PasteAndProofreadInAppAsync());
             outputMenu.Items.Add("Delete", null, (s, e) => textBoxOutput.SelectedText = "");
             outputMenu.Items.Add(new ToolStripSeparator());
             outputMenu.Items.Add("Select All", null, (s, e) => textBoxOutput.SelectAll());
@@ -223,6 +223,17 @@ namespace SmartDictateAI
                 {
                 lblVramUsage.Text = $"{ramText} | VRAM: N/A";
                 }
+            }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+            {
+            if ((keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert)) && !textBoxDebug.Focused)
+                {
+                _ = PasteAndProofreadInAppAsync();
+                return true;
+                }
+
+            return base.ProcessCmdKey(ref msg, keyData);
             }
 
         protected override void WndProc(ref Message m)
@@ -495,6 +506,94 @@ namespace SmartDictateAI
                 }
             }
 
+
+        private async Task PasteAndProofreadInAppAsync()
+            {
+            if (_isProofreadingClipboard)
+                {
+                AppendToDebugOutput("[Clipboard] In-app paste proofreading skipped: already processing.");
+                return;
+                }
+
+            if (isFormRecordingState || isInDictationModeCurrently || isStoppingOrProcessingFinal || _applyingSettings)
+                {
+                AppendToDebugOutput("[Clipboard] In-app paste proofreading skipped: recording or settings update active.");
+                return;
+                }
+
+            string clip = string.Empty;
+            try
+                {
+                clip = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+                }
+            catch (Exception ex)
+                {
+                AppendToDebugOutput($"[Clipboard] Clipboard read error during in-app paste: {ex.Message}");
+                return;
+                }
+
+            if (string.IsNullOrWhiteSpace(clip))
+                {
+                AppendToDebugOutput("[Clipboard] In-app paste ignored: clipboard is empty or contains no text.");
+                return;
+                }
+
+            _isProofreadingClipboard = true;
+            btnLLMcb.Enabled = false;
+            UpdateStatusIndicator(DictationVisualState.Processing, "Proofreading...");
+
+            try
+                {
+                AppendToDebugOutput($"[Clipboard] In-app paste received ({clip.Length} chars). Sending text to LLM...");
+
+                transcriptionService.LastRawFilteredText = clip;
+                transcriptionService.LastLLMProcessedText = string.Empty;
+                transcriptionService.WasLastProcessingWithLLM = false;
+
+                string profileName = transcriptionService.Settings.ActivePromptProfileName;
+                AppendToTranscriptionOutput("", true);
+                AppendToTranscriptionOutput("--- Pasted Text Proofreading ---", true);
+                AppendToTranscriptionOutput("Original: " + clip, true);
+
+                var refined = await transcriptionService.ProcessTextWithLLMAsync(clip);
+
+                transcriptionService.LastLLMProcessedText = refined;
+                transcriptionService.WasLastProcessingWithLLM = !string.IsNullOrWhiteSpace(refined);
+
+                if (!string.IsNullOrWhiteSpace(refined))
+                    {
+                    AppendToTranscriptionOutput($"LLM Refined ({profileName}): " + refined, true);
+                    try
+                        {
+                        Clipboard.SetText(refined);
+                        AppendToDebugOutput("[Clipboard] LLM refined text automatically copied to clipboard.");
+                        UpdateStatusIndicator(DictationVisualState.Idle, "Copied to Clipboard");
+                        }
+                    catch (Exception ex)
+                        {
+                        AppendToDebugOutput($"[Clipboard] Error copying refined text to clipboard: {ex.Message}");
+                        UpdateStatusIndicator(DictationVisualState.Error, "Clipboard Copy Error");
+                        }
+                    }
+                else
+                    {
+                    AppendToTranscriptionOutput($"LLM Refined ({profileName}): [No Output]", true);
+                    UpdateStatusIndicator(DictationVisualState.Idle, "Proofread Finished");
+                    }
+
+                AppendToTranscriptionOutput("------------------------------", true);
+                }
+            catch (Exception ex)
+                {
+                AppendToDebugOutput($"[Clipboard] In-app paste proofreading error: {ex.Message}");
+                UpdateStatusIndicator(DictationVisualState.Error, "Proofread Error");
+                }
+            finally
+                {
+                _isProofreadingClipboard = false;
+                UpdateButtonStates();
+                }
+            }
 
         private static readonly Regex PlaceholderRegex = new Regex(
         @"(\[[A-Za-z _\-]+\]|\([A-Za-z _\-]+\)|\.\.\.)",

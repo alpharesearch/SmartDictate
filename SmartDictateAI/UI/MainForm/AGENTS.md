@@ -1,7 +1,7 @@
 # SmartDictate MainForm DOX
 
 ## Purpose
-Main application window of SmartDictate. Responsible for the UI layout, system tray initialization, global hotkey registration callbacks, performance monitoring (CPU, RAM, GPU/VRAM), and visual status pipeline transitions (Idle, Listening, Processing, etc.).
+Main application window of SmartDictate. Responsible for the UI layout, system tray initialization, global hotkey registration callbacks, in-app paste proofreading (`Ctrl+V` / context menu), performance monitoring (CPU, RAM, GPU/VRAM), and visual status pipeline transitions (Idle, Listening, Processing, etc.).
 
 ## Ownership
 SmartDictate UI / Presentation layer.
