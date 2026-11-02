@@ -13,7 +13,7 @@ SmartDictate services layer.
 
 ## Work Guidance
 - Whisper: Manages GGML model contexts and speech-to-text inference.
-- LLM: Handles GGUF model contexts and text post-processing refinements.
+- LLM: Handles GGUF model contexts, native backend configuration (`NativeLibraryConfig`), and text post-processing refinements.
 - VAD: Handles voice activity detection and software amplification of audio frames.
 - Audio Capture: Encapsulates NAudio capture state.
 

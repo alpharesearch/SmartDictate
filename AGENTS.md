@@ -1,10 +1,10 @@
 # SmartDictate
 
 ## Project Overview
-SmartDictate is a C# .NET 9 Windows Forms application that provides local, privacy-first voice dictation and text proofreading capabilities. It utilizes local machine learning models for both speech-to-text and text refinement, ensuring no data is sent to external servers.
+SmartDictate is a C# .NET 10 Windows Forms application that provides local, privacy-first voice dictation and text proofreading capabilities. It utilizes local machine learning models for both speech-to-text and text refinement, ensuring no data is sent to external servers.
 
 ### Key Technologies
-*   **Framework:** .NET 9 (Windows Forms)
+*   **Framework:** .NET 10 (Windows Forms)
 *   **Speech-to-Text:** [Whisper.net](https://github.com/sandrohanea/whisper.net) using local GGML models.
 *   **Local LLM Inference:** [LLamaSharp](https://github.com/SciSharp/LLamaSharp) using local GGUF models (e.g., Qwen, Llama, Gemma).
 *   **Audio Capture:** NAudio.
@@ -22,9 +22,9 @@ SmartDictate is a C# .NET 9 Windows Forms application that provides local, priva
 *   **Real-time Monitoring:** Tracks System RAM and GPU VRAM usage.
 
 ## Building and Running
-The project requires Visual Studio 2022 to build and run effectively, particularly due to the reliance on Windows Forms and specific platform targeting.
+The project requires Visual Studio 2026 to build and run effectively, particularly due to the reliance on Windows Forms and specific platform targeting.
 
-1.  **Open Solution:** Open `SmartDictate.sln` in Visual Studio 2022.
+1.  **Open Solution:** Open `SmartDictate.sln` in Visual Studio 2026.
 2.  **Platform Target:** Ensure the platform target is set to `x64`.
 3.  **Restore Packages:** Allow Visual Studio to restore NuGet packages.
 4.  **Run:** Press `F5` or click **Start** to build and launch the application.

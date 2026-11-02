@@ -20,7 +20,7 @@ SmartDictate core development.
   - Private backing fields prefixed with an underscore (e.g., `_vramTimer`).
 
 ## Verification
-- Run the build using Visual Studio 2022 (targeted for `x64`).
+- Run the build using Visual Studio 2026 (targeted for `x64`).
 - Open and verify the Windows Forms designer in Visual Studio to ensure compliance.
 
 ## Child DOX Index

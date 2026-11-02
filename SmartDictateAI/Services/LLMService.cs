@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using LLama;
 using LLama.Common;
+using LLama.Native;
 
 namespace SmartDictateAI.Services
 {
@@ -38,6 +40,14 @@ namespace SmartDictateAI.Services
                 {
                     DisposeResourcesInternal(onDebugMessage);
 
+                    if (!NativeLibraryConfig.LLama.LibraryHasLoaded)
+                    {
+                        NativeLibraryConfig.All
+                            .WithCuda(useGpu)
+                            .WithVulkan(useGpu)
+                            .WithAutoFallback(true);
+                    }
+
                     var parameters = new ModelParams(modelPath)
                     {
                         ContextSize = (uint)contextSize,
@@ -47,13 +57,14 @@ namespace SmartDictateAI.Services
                     _llmExecutor = new StatelessExecutor(_llmModelWeights, parameters);
                     _currentModelPath = modelPath;
 
-                    onDebugMessage?.Invoke($"[LLM] Backend request | UseGpu={useGpu} | GpuLayerCount={parameters.GpuLayerCount} | Arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+                    onDebugMessage?.Invoke($"[LLM] Backend request | UseGpu={useGpu} | GpuLayerCount={parameters.GpuLayerCount} | Arch={RuntimeInformation.ProcessArchitecture}");
                     onDebugMessage?.Invoke("[LLM] Initialized successfully.");
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    onDebugMessage?.Invoke($"[LLM] FATAL: [LLM] Could not initialize LLamaSharp: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    string innerMsg = ex.InnerException != null ? $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}" : string.Empty;
+                    onDebugMessage?.Invoke($"[LLM] FATAL: [LLM] Could not initialize LLamaSharp: {ex.Message}{innerMsg}{Environment.NewLine}{ex.StackTrace}");
                     DisposeResourcesInternal(onDebugMessage);
                     return false;
                 }
